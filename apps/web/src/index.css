@@ -1,0 +1,67 @@
+:root {
+  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Light mode colors */
+  --surface-default: #ffffff;
+  --surface-subtle: #f5f6f8;
+  --surface-elevated: #fafbff;
+  --border-soft: rgba(15, 23, 42, 0.08);
+  --border-subtle: rgba(15, 23, 42, 0.04);
+  --border-strong: rgba(15, 23, 42, 0.12);
+  --text-primary: #1b2431;
+  --text-secondary: rgba(27, 36, 49, 0.68);
+  --text-muted: rgba(27, 36, 49, 0.45);
+  --accent: #3e63dd;
+  --accent-soft: rgba(62, 99, 221, 0.12);
+  --accent-subtle: rgba(62, 99, 221, 0.16);
+  --accent-strong: #2646a7;
+  --shadow-soft: 0 12px 30px -22px rgba(13, 27, 62, 0.52);
+
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode colors */
+:root.dark {
+  --surface-default: #1a1d29;
+  --surface-subtle: #13151c;
+  --surface-elevated: #202430;
+  --border-soft: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --text-primary: #e8e9eb;
+  --text-secondary: rgba(232, 233, 235, 0.75);
+  --text-muted: rgba(232, 233, 235, 0.5);
+  --accent: #5b7fff;
+  --accent-soft: rgba(91, 127, 255, 0.2);
+  --accent-subtle: rgba(91, 127, 255, 0.25);
+  --accent-strong: #3e63dd;
+  --shadow-soft: 0 12px 30px -22px rgba(0, 0, 0, 0.5);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

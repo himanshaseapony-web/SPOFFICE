@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserProfileExists() {
+      return exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid));
+    }
+    
+    function getUserProfileOrNull() {
+      return exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) 
+             ? get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data 
+             : null;
+    }
+    
+    function hasRole(roles) {
+      return isAuthenticated() && 
+             getUserProfileExists() && 
+             getUserProfileOrNull() != null &&
+             getUserProfileOrNull().role in roles;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAssigned(taskData) {
+      return isAuthenticated() && request.auth.uid == taskData.assigneeId;
+    }
+    
+    function isCurrentUserAdmin() {
+      let profile = getUserProfileOrNull();
+      return isAuthenticated() && 
+             getUserProfileExists() && 
+             profile != null && 
+             profile.role == 'Admin';
+    }
+    
+    // User Profiles
+    match /userProfiles/{userId} {
+      allow read: if isAuthenticated();
+      // Allow create if:
+      // 1. User is creating their own profile (during initial signup)
+      // 2. Admin is creating a profile for another user
+      allow create: if isAuthenticated() && (
+        isOwner(userId) || 
+        isCurrentUserAdmin()
+      );
+      
+      // Allow update if:
+      // 1. User is updating their own profile (for profile image, display name, etc. - but not role/department/isDepartmentHead)
+      // 2. Admin is updating any user's profile (including role changes)
+      allow update: if isAuthenticated() && (
+        // Owner updating own profile (restricted fields - cannot change role, department, or isDepartmentHead)
+        (isOwner(userId) && 
+         (!('role' in request.resource.data.diff(resource.data).affectedKeys()) || 
+          request.resource.data.role == resource.data.role) &&
+         (!('isDepartmentHead' in request.resource.data.diff(resource.data).affectedKeys()) || 
+          request.resource.data.isDepartmentHead == resource.data.isDepartmentHead) &&
+         (!('department' in request.resource.data.diff(resource.data).affectedKeys()) || 
+          request.resource.data.department == resource.data.department)) ||
+        // Admin can update any user's profile (including role, department, isDepartmentHead)
+        isCurrentUserAdmin()
+      );
+      
+      // Allow delete only for Admins
+      allow delete: if isAuthenticated() && hasRole(['Admin']);
+    }
+    
+    // Departments
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && hasRole(['Admin', 'Manager']);
+    }
+    
+    // Tasks
+    match /tasks/{taskId} {
+      // Allow read for authenticated users - filtering happens client-side
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && 
+        getUserProfileExists() &&
+        hasRole(['Admin', 'Manager', 'Specialist', 'DepartmentHead']) &&
+        request.resource.data.keys().hasAll(['title', 'department', 'assignee', 'status', 'priority', 'summary']) &&
+        request.resource.data.title is string &&
+        request.resource.data.department is string &&
+        request.resource.data.assignee is string &&
+        request.resource.data.status is string &&
+        request.resource.data.priority is string &&
+        request.resource.data.summary is string &&
+        // fileUrls is optional, but if present must be a list of strings
+        (!('fileUrls' in request.resource.data) || 
+         (request.resource.data.fileUrls is list && 
+          request.resource.data.fileUrls.size() <= 50));
+      
+      allow update: if isAuthenticated() && getUserProfileExists() && (
+        // Can update if assigned to the task (can update status, priority, summary, fileUrls)
+        (isAssigned(resource.data) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'fileUrls', 'updatedAt'])) ||
+        // Admin/Manager can update any field
+        hasRole(['Admin', 'Manager']) ||
+        // Department heads can update tasks in their department
+        (getUserProfileOrNull() != null && 
+         getUserProfileOrNull().isDepartmentHead == true &&
+         getUserProfileOrNull().department == resource.data.department) ||
+        // Or if updating status/priority and assigned to same department
+        (getUserProfileOrNull() != null && 
+         getUserProfileOrNull().department == resource.data.department && 
+         hasRole(['Specialist']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'updatedAt']))
+      );
+      
+      allow delete: if isAuthenticated() && hasRole(['Admin']);
+    }
+    
+    // Department Chats
+    match /departmentChats/{messageId} {
+      // Allow read for authenticated users - filtering happens client-side
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['author', 'authorId', 'department', 'text', 'createdAt', 'role']);
+      
+      allow update, delete: if isAuthenticated() && (
+        isOwner(resource.data.authorId) ||
+        hasRole(['Admin', 'Manager'])
+      );
+    }
+    
+    // Company Chat - accessible to all authenticated users
+    match /companyChats/{messageId} {
+      // Allow read for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow create for all authenticated users (must be the author)
+      allow create: if isAuthenticated() &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['author', 'authorId', 'text', 'createdAt', 'role']);
+      
+      // Allow update/delete only by the author or Admin/Manager
+      allow update, delete: if isAuthenticated() && (
+        isOwner(resource.data.authorId) ||
+        hasRole(['Admin', 'Manager'])
+      );
+    }
+    
+    // Default: deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
