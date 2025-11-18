@@ -81,6 +81,7 @@ service cloud.firestore {
       // Allow read for authenticated users - filtering happens client-side
       allow read: if isAuthenticated();
       
+      // Managers have full access to all departments (department = "all")
       allow create: if isAuthenticated() && 
         getUserProfileExists() &&
         hasRole(['Admin', 'Manager', 'Specialist', 'DepartmentHead']) &&
@@ -100,7 +101,7 @@ service cloud.firestore {
         // Can update if assigned to the task (can update status, priority, summary, fileUrls)
         (isAssigned(resource.data) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'fileUrls', 'updatedAt'])) ||
-        // Admin/Manager can update any field
+        // Admin/Manager can update any field (Managers have department = "all" for full access)
         hasRole(['Admin', 'Manager']) ||
         // Department heads can update tasks in their department
         (getUserProfileOrNull() != null && 

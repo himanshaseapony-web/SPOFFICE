@@ -35,6 +35,13 @@ export function SettingsPage() {
     isDepartmentHead: false,
   })
 
+  // Automatically set department to "all" when Manager role is selected
+  useEffect(() => {
+    if (newUser.role === 'Manager') {
+      setNewUser((prev) => ({ ...prev, department: 'all' }))
+    }
+  }, [newUser.role])
+
   const handleWorkspaceSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!firestore) {
@@ -189,13 +196,16 @@ export function SettingsPage() {
       // Create user profile document in Firestore
       const userProfileRef = doc(firestore, 'userProfiles', userId)
       
+      // Managers are in charge of all departments, so set department to "all"
+      const finalDepartment = newUser.role === 'Manager' ? 'all' : newUser.department
+      
       console.log('📝 Creating user profile for:', userId)
       console.log('👤 Current admin user:', user?.uid, 'Role:', userProfile?.role)
       console.log('📋 Profile data:', {
         id: userId,
         email: newUser.email,
         displayName: newUser.displayName,
-        department: newUser.department,
+        department: finalDepartment,
         role: newUser.role,
         isDepartmentHead: newUser.isDepartmentHead,
       })
@@ -205,7 +215,7 @@ export function SettingsPage() {
           id: userId,
           email: newUser.email,
           displayName: newUser.displayName,
-          department: newUser.department,
+          department: finalDepartment,
           role: newUser.role,
           isDepartmentHead: newUser.isDepartmentHead,
           createdAt: new Date().toISOString(),
@@ -257,7 +267,7 @@ export function SettingsPage() {
         displayName: '',
         password: '',
         department: '',
-        role: 'Viewer',
+        role: 'Viewer' as UserProfile['role'],
         isDepartmentHead: false,
       })
       setIsAddUserOpen(false)
@@ -622,18 +632,30 @@ export function SettingsPage() {
                   </label>
                   <label>
                     <span>Department</span>
-                    <select
-                      required
-                      value={newUser.department}
-                      onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
-                    >
-                      <option value="">Select department</option>
-                      {departments.map((dept) => (
-                        <option key={dept.id} value={dept.name}>
-                          {dept.name}
-                        </option>
-                      ))}
-                    </select>
+                    {newUser.role === 'Manager' ? (
+                      <div style={{ 
+                        padding: '0.75rem', 
+                        background: 'var(--surface-subtle)', 
+                        borderRadius: '0.5rem',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.9rem'
+                      }}>
+                        Managers are in charge of all departments. No department selection needed.
+                      </div>
+                    ) : (
+                      <select
+                        required
+                        value={newUser.department}
+                        onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
+                      >
+                        <option value="">Select department</option>
+                        {departments.map((dept) => (
+                          <option key={dept.id} value={dept.name}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </label>
                   <label>
                     <span>Role</span>
@@ -727,6 +749,12 @@ export function SettingsPage() {
                             // If changing from/to DepartmentHead, update isDepartmentHead flag
                             const updates: Partial<UserProfile> = {
                               role: newRole,
+                            }
+                            
+                            // Managers are in charge of all departments
+                            if (newRole === 'Manager') {
+                              updates.department = 'all'
+                              console.log('🔧 Setting department to "all" for Manager role')
                             }
                             
                             if (newRole === 'DepartmentHead' && !profile.isDepartmentHead) {
