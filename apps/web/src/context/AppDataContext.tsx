@@ -18,8 +18,10 @@ import {
   updateDoc,
   deleteDoc,
   where,
+  type CollectionReference,
   type DocumentData,
   type Firestore,
+  type Query,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { getFirebaseApp } from '../lib/firebase'
@@ -292,7 +294,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const userRole = profileData?.role ?? 'Viewer'
         
         const tasksRef = collection(firestore, 'tasks')
-        let tasksQuery = tasksRef
+        let tasksQuery: Query<DocumentData, DocumentData> | CollectionReference<DocumentData, DocumentData> = tasksRef
         
         // Filter by department if user is not Admin and not a department head with 'all' access
         if (userRole !== 'Admin' && departmentFilter && departmentFilter !== 'all') {

@@ -1,8 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { useAuth } from '../context/AuthContext'
-import { getAuth } from 'firebase/auth'
-import { getFirebaseApp } from '../lib/firebase'
 
 type PasswordVerificationModalProps = {
   isOpen: boolean
@@ -49,7 +47,6 @@ export function PasswordVerificationModal({
 
     try {
       // Re-authenticate user with password
-      const auth = getAuth(getFirebaseApp())
       const credential = EmailAuthProvider.credential(user.email, password)
       await reauthenticateWithCredential(user, credential)
 

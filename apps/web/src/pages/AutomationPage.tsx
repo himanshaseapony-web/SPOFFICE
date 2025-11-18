@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { AccessGuard } from '../components/AccessGuard'
-import { useAppData } from '../context/AppDataContext'
 
 type AutomationRule = {
   id: string
@@ -10,7 +9,6 @@ type AutomationRule = {
 }
 
 export function AutomationPage() {
-  const { userProfile, firestore } = useAppData()
   const [rules, setRules] = useState<AutomationRule[]>([
     {
       id: '1',

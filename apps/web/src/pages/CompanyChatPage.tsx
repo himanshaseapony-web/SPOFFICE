@@ -22,7 +22,7 @@ export function CompanyChatPage() {
   const { user } = useAuth()
   const { userProfile, firestore, dataError, allUserProfiles, deleteCompanyChatMessage } = useAppData()
 
-  const canDeleteMessage = (messageAuthorId: string): boolean => {
+  const canDeleteMessage = (_messageAuthorId: string): boolean => {
     if (!user || !userProfile) return false
     const role = userProfile.role
     // Only Admins and Managers can delete messages

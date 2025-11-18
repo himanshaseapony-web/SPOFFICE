@@ -1,7 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
-import { AccessGuard } from './AccessGuard'
 import type { ReactNode } from 'react'
 
 type ProtectedRouteProps = {

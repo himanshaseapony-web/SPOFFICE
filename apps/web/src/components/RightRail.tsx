@@ -27,7 +27,7 @@ export function RightRail({ messages, departmentSummaries }: RightRailProps) {
   const { user } = useAuth()
   const { userProfile, firestore, dataError, allUserProfiles, deleteChatMessage } = useAppData()
 
-  const canDeleteMessage = (message: ChatMessage): boolean => {
+  const canDeleteMessage = (_message: ChatMessage): boolean => {
     if (!user || !userProfile) return false
     const role = userProfile.role
     // Only Admins and Managers can delete messages
