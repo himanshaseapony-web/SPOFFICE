@@ -26,7 +26,7 @@ export function PasswordInput({
   const [showPassword, setShowPassword] = useState(false)
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%' }}>
       <input
         type={showPassword ? 'text' : 'password'}
         value={value}
@@ -38,7 +38,11 @@ export function PasswordInput({
         autoFocus={autoFocus}
         id={id}
         name={name}
-        style={{ paddingRight: '2.5rem' }}
+        style={{ 
+          width: '100%',
+          paddingRight: '2.5rem',
+          boxSizing: 'border-box',
+        }}
       />
       <button
         type="button"
@@ -46,7 +50,7 @@ export function PasswordInput({
         disabled={disabled}
         style={{
           position: 'absolute',
-          right: '0.5rem',
+          right: '0.75rem',
           top: '50%',
           transform: 'translateY(-50%)',
           background: 'none',
@@ -58,6 +62,7 @@ export function PasswordInput({
           justifyContent: 'center',
           color: 'var(--text-muted)',
           opacity: disabled ? 0.5 : 1,
+          zIndex: 1,
         }}
         aria-label={showPassword ? 'Hide password' : 'Show password'}
         tabIndex={-1}

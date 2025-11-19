@@ -283,9 +283,10 @@ export function AppLayout() {
                   name="fileUrls" 
                   rows={2} 
                   placeholder="Add file URLs (one per line or comma-separated). Example: https://example.com/file.pdf" 
+                  style={{ resize: 'vertical' }}
                 />
                 <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                  Enter URLs to share files. Each URL should start with http:// or https://
+                  Optional: Enter URLs to share files. Invalid URLs will be ignored. Each URL should start with http:// or https://
                 </small>
               </label>
               {taskError && (
