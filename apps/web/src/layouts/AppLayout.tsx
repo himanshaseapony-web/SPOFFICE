@@ -8,6 +8,7 @@ import { FilterDrawer } from '../components/FilterDrawer'
 import { navItems } from '../config/navigation'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
+import { playNotificationSound } from '../lib/notifications'
 
 export function AppLayout() {
   const location = useLocation()
@@ -212,6 +213,9 @@ export function AppLayout() {
                   const docRef = await addDoc(collection(firestore, 'tasks'), taskData)
 
                   console.log('✅ Task created successfully with ID:', docRef.id)
+                  
+                  // Play notification sound
+                  playNotificationSound()
                   
                   // Reset form if it still exists
                   if (formElement) {

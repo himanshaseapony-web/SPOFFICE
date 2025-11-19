@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useAppData } from '../context/AppDataContext'
 import { Avatar } from '../components/Avatar'
 import { PasswordVerificationModal } from '../components/PasswordVerificationModal'
+import { playNotificationSound } from '../lib/notifications'
 
 export function CompanyChatPage() {
   const [messageText, setMessageText] = useState('')
@@ -18,6 +19,7 @@ export function CompanyChatPage() {
     text: string
   }>>([])
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const previousCompanyMessageIdsRef = useRef<Set<string>>(new Set())
   const [deleteMessageId, setDeleteMessageId] = useState<string | null>(null)
   const { user } = useAuth()
   const { userProfile, firestore, dataError, allUserProfiles, deleteCompanyChatMessage } = useAppData()
@@ -65,6 +67,24 @@ export function CompanyChatPage() {
             text: data.text ?? '',
           }
         })
+        
+        // Check for new messages (not sent by current user)
+        const currentMessageIds = new Set(messages.map(m => m.id))
+        const previousIds = previousCompanyMessageIdsRef.current
+        
+        // Find new messages that weren't in the previous set
+        const newMessageIds = messages
+          .filter(msg => !previousIds.has(msg.id) && msg.authorId !== user?.uid)
+          .map(msg => msg.id)
+        
+        // Play notification sound for new messages from other users
+        if (newMessageIds.length > 0 && previousIds.size > 0) {
+          playNotificationSound()
+        }
+        
+        // Update previous message IDs
+        previousCompanyMessageIdsRef.current = currentMessageIds
+        
         // Reverse to show oldest first
         setCompanyMessages(messages.reverse())
       },

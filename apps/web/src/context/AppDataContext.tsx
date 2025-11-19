@@ -26,6 +26,7 @@ import {
 } from 'firebase/firestore'
 import { getFirebaseApp } from '../lib/firebase'
 import { useAuth } from './AuthContext'
+import { playNotificationSound } from '../lib/notifications'
 
 export type Department = {
   id: string
@@ -113,6 +114,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [dataError, setDataError] = useState<Error | null>(null)
   const tasksUnsubscribeRef = useRef<Unsubscribe | null>(null)
   const chatsUnsubscribeRef = useRef<Unsubscribe | null>(null)
+  const previousChatMessageIdsRef = useRef<Set<string>>(new Set())
   const [filters, setFilters] = useState<TaskFilters>({
     statuses: ['Backlog', 'In Progress', 'Review', 'Completed'],
     priorities: ['High', 'Medium', 'Low'],
@@ -349,20 +351,37 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         chatsUnsubscribeRef.current = onSnapshot(
           chatsQuery,
           (chatsSnapshot) => {
-            setChatMessages(
-              chatsSnapshot.docs.map((docSnapshot) => {
-                const data = docSnapshot.data()
-                return {
-                  id: docSnapshot.id,
-                  author: data.author ?? '',
-                  authorId: data.authorId ?? '',
-                  department: data.department ?? '',
-                  createdAt: data.createdAt?.toDate?.() ?? new Date(),
-                  text: data.text ?? '',
-                  role: data.role ?? '',
-                } satisfies ChatMessage
-              }),
-            )
+            const newMessages = chatsSnapshot.docs.map((docSnapshot) => {
+              const data = docSnapshot.data()
+              return {
+                id: docSnapshot.id,
+                author: data.author ?? '',
+                authorId: data.authorId ?? '',
+                department: data.department ?? '',
+                createdAt: data.createdAt?.toDate?.() ?? new Date(),
+                text: data.text ?? '',
+                role: data.role ?? '',
+              } satisfies ChatMessage
+            })
+            
+            // Check for new messages (not sent by current user)
+            const currentMessageIds = new Set(newMessages.map(m => m.id))
+            const previousIds = previousChatMessageIdsRef.current
+            
+            // Find new messages that weren't in the previous set
+            const newMessageIds = newMessages
+              .filter(msg => !previousIds.has(msg.id) && msg.authorId !== user?.uid)
+              .map(msg => msg.id)
+            
+            // Play notification sound for new messages from other users
+            if (newMessageIds.length > 0 && previousIds.size > 0) {
+              playNotificationSound()
+            }
+            
+            // Update previous message IDs
+            previousChatMessageIdsRef.current = currentMessageIds
+            
+            setChatMessages(newMessages)
             setLoading(false)
           },
           (error) => {
