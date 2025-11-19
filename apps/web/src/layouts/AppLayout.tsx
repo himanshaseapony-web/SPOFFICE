@@ -188,18 +188,22 @@ export function AppLayout() {
                     userProfile: userProfile,
                   })
                   
-                  const taskData = {
+                  const taskData: Record<string, any> = {
                     title,
                     department,
                     assignee: assigneeName,
                     assigneeId: selectedAssignee.id,
                     dueDate: dueDate || null,
                     summary,
-                    fileUrls: fileUrls.length > 0 ? fileUrls : undefined,
                     status: 'Backlog',
                     priority: 'Medium',
                     createdAt: Timestamp.now(),
                     createdBy: user.uid,
+                  }
+                  
+                  // Only include fileUrls if there are valid URLs
+                  if (fileUrls.length > 0) {
+                    taskData.fileUrls = fileUrls
                   }
                   
                   console.log('📤 Sending to Firestore:', taskData)
