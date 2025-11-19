@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
-import { doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore'
+import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore'
 import type { UserProfile } from '../context/AppDataContext'
 import { uploadProfileImage, deleteProfileImage } from '../lib/storage'
 import { Avatar } from '../components/Avatar'
@@ -48,7 +48,6 @@ export function SettingsPage() {
   // User deletion state
   const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
   const [selectedUserForDeletion, setSelectedUserForDeletion] = useState<UserProfile | null>(null)
-  const [deletingUser, setDeletingUser] = useState(false)
 
   // Automatically set department to "all" when Manager role is selected
   useEffect(() => {
@@ -525,7 +524,6 @@ export function SettingsPage() {
   const handleDeleteUser = async () => {
     if (!selectedUserForDeletion) return
 
-    setDeletingUser(true)
     setError(null)
     setSuccess(false)
 
@@ -543,8 +541,6 @@ export function SettingsPage() {
       setError(errorMessage)
       setShowDeleteUserModal(false)
       setSelectedUserForDeletion(null)
-    } finally {
-      setDeletingUser(false)
     }
   }
 
