@@ -127,7 +127,8 @@ export function AppLayout() {
                   return
                 }
                 
-                const data = new FormData(event.currentTarget)
+                const formElement = event.currentTarget
+                const data = new FormData(formElement)
                 const title = (data.get('title') as string)?.trim() ?? ''
                 const department = (data.get('department') as string)?.trim() ?? ''
                 const assigneeName = (data.get('assignee') as string)?.trim() ?? ''
@@ -211,7 +212,12 @@ export function AppLayout() {
                   const docRef = await addDoc(collection(firestore, 'tasks'), taskData)
 
                   console.log('✅ Task created successfully with ID:', docRef.id)
-                  event.currentTarget.reset()
+                  
+                  // Reset form if it still exists
+                  if (formElement) {
+                    formElement.reset()
+                  }
+                  
                   setTaskError(null)
                   setIsCreateTaskOpen(false)
                 } catch (error: any) {
