@@ -34,6 +34,46 @@ function formatDueDate(value?: string) {
   })
 }
 
+function getTimeUntilDeadline(dueDateString: string): { text: string; color: string; isOverdue: boolean } {
+  if (!dueDateString) {
+    return { text: 'No due date', color: 'var(--text-muted)', isOverdue: false }
+  }
+
+  const dueDate = new Date(dueDateString)
+  if (isNaN(dueDate.getTime())) {
+    return { text: 'Invalid date', color: 'var(--text-muted)', isOverdue: false }
+  }
+
+  const now = new Date()
+  // Set time to start of day for accurate day calculations
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const due = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+
+  // Calculate difference in milliseconds
+  const diffMs = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    // Overdue
+    const daysOverdue = Math.abs(diffDays)
+    return {
+      text: daysOverdue === 1 ? 'Overdue by 1 day' : `Overdue by ${daysOverdue} days`,
+      color: '#dc2626',
+      isOverdue: true,
+    }
+  } else if (diffDays === 0) {
+    return { text: 'Due today', color: '#f59e0b', isOverdue: false }
+  } else if (diffDays === 1) {
+    return { text: 'Due tomorrow', color: '#f59e0b', isOverdue: false }
+  } else if (diffDays <= 3) {
+    return { text: `${diffDays} days remaining`, color: '#f59e0b', isOverdue: false }
+  } else if (diffDays <= 7) {
+    return { text: `${diffDays} days remaining`, color: 'var(--accent)', isOverdue: false }
+  } else {
+    return { text: `${diffDays} days remaining`, color: 'var(--text-muted)', isOverdue: false }
+  }
+}
+
 export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardProps) {
   const { updateTask, deleteTask, userProfile } = useAppData()
   const { user } = useAuth()
@@ -190,7 +230,31 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
               <p>{task.summary}</p>
               <div className="task-card-footer">
                 <span className={statusPillClass[task.status]}>{task.status}</span>
-                <span>{formatDueDate(task.dueDate)}</span>
+                {(() => {
+                  const deadline = getTimeUntilDeadline(task.dueDate)
+                  return (
+                    <span
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.25rem',
+                        background: deadline.isOverdue
+                          ? '#dc262620'
+                          : deadline.color === '#f59e0b'
+                          ? '#f59e0b20'
+                          : deadline.color === 'var(--accent)'
+                          ? 'var(--accent-soft)'
+                          : 'var(--surface-elevated)',
+                        color: deadline.color,
+                        fontWeight: 500,
+                        border: deadline.isOverdue ? '1px solid #dc262640' : 'none',
+                        fontSize: '0.85rem',
+                      }}
+                      title={`Due: ${formatDueDate(task.dueDate)}`}
+                    >
+                      {deadline.text}
+                    </span>
+                  )
+                })()}
                 <span>{task.assignee}</span>
               </div>
             </button>
@@ -285,7 +349,39 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
             </div>
             <div>
               <span className="section-label">Due</span>
-              <p>{formatDueDate(selectedTask?.dueDate)}</p>
+              {selectedTask?.dueDate ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <p style={{ margin: 0 }}>{formatDueDate(selectedTask.dueDate)}</p>
+                  {(() => {
+                    const deadline = getTimeUntilDeadline(selectedTask.dueDate)
+                    return (
+                      <span
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.375rem',
+                          background: deadline.isOverdue
+                            ? '#dc262620'
+                            : deadline.color === '#f59e0b'
+                            ? '#f59e0b20'
+                            : deadline.color === 'var(--accent)'
+                            ? 'var(--accent-soft)'
+                            : 'var(--surface-elevated)',
+                          color: deadline.color,
+                          fontWeight: 600,
+                          border: deadline.isOverdue ? '1px solid #dc262640' : 'none',
+                          fontSize: '0.875rem',
+                          display: 'inline-block',
+                          width: 'fit-content',
+                        }}
+                      >
+                        {deadline.text}
+                      </span>
+                    )
+                  })()}
+                </div>
+              ) : (
+                <p style={{ margin: 0 }}>No due date</p>
+              )}
             </div>
           </section>
 
