@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { FormEvent } from 'react'
 import { useAppData, type TaskFilters } from '../context/AppDataContext'
+import { useAuth } from '../context/AuthContext'
 
 type FilterDrawerProps = {
   isOpen: boolean
@@ -9,6 +10,7 @@ type FilterDrawerProps = {
 
 export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
   const { departments, filters, setFilters } = useAppData()
+  const { user } = useAuth()
   const [localFilters, setLocalFilters] = useState<TaskFilters>(filters)
 
   useEffect(() => {
@@ -57,11 +59,19 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
     onClose()
   }
 
+  const handleAssignedToMeChange = (checked: boolean) => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      assignedToMe: checked,
+    }))
+  }
+
   const handleReset = () => {
     const defaultFilters: TaskFilters = {
       statuses: ['Backlog', 'In Progress', 'Review', 'Completed'],
       priorities: ['High', 'Medium', 'Low'],
       departments: [],
+      assignedToMe: false,
     }
     setLocalFilters(defaultFilters)
     setFilters(defaultFilters)
@@ -79,6 +89,19 @@ export function FilterDrawer({ isOpen, onClose }: FilterDrawerProps) {
         </button>
       </header>
       <form className="filter-form" onSubmit={handleApply}>
+        {user && (
+          <fieldset>
+            <legend>Assignment</legend>
+            <label>
+              <input
+                type="checkbox"
+                checked={localFilters.assignedToMe ?? false}
+                onChange={(e) => handleAssignedToMeChange(e.target.checked)}
+              />
+              <span>My Tasks</span>
+            </label>
+          </fieldset>
+        )}
         <fieldset>
           <legend>Status</legend>
           {(['Backlog', 'In Progress', 'Review', 'Completed'] as const).map((status) => (

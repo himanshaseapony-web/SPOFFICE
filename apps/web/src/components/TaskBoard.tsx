@@ -74,6 +74,45 @@ function getTimeUntilDeadline(dueDateString: string): { text: string; color: str
   }
 }
 
+const MAX_SUMMARY_LENGTH = 120 // Characters to show before collapsing
+
+function CollapsibleSummary({ summary }: { summary: string }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const shouldCollapse = summary.length > MAX_SUMMARY_LENGTH
+  const displayText = shouldCollapse && !isExpanded 
+    ? summary.substring(0, MAX_SUMMARY_LENGTH).trim() + '...' 
+    : summary
+
+  if (!shouldCollapse) {
+    return <p>{summary}</p>
+  }
+
+  return (
+    <div>
+      <p style={{ margin: 0, marginBottom: '0.5rem' }}>{displayText}</p>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setIsExpanded(!isExpanded)
+        }}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'var(--accent)',
+          cursor: 'pointer',
+          padding: 0,
+          fontSize: '0.875rem',
+          fontWeight: 500,
+          textDecoration: 'underline',
+        }}
+      >
+        {isExpanded ? 'See less' : 'See more'}
+      </button>
+    </div>
+  )
+}
+
 export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardProps) {
   const { updateTask, deleteTask, userProfile } = useAppData()
   const { user } = useAuth()
@@ -227,7 +266,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
                 </span>
               </div>
               <h3>{task.title}</h3>
-              <p>{task.summary}</p>
+              <CollapsibleSummary summary={task.summary} />
               <div className="task-card-footer">
                 <span className={statusPillClass[task.status]}>{task.status}</span>
                 {(() => {
@@ -335,7 +374,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
 
           <section className="detail-section">
             <span className="section-label">Summary</span>
-            <p>{selectedTask?.summary}</p>
+            {selectedTask && <CollapsibleSummary summary={selectedTask.summary} />}
           </section>
 
           <section className="detail-grid">

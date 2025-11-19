@@ -74,6 +74,7 @@ export type TaskFilters = {
   statuses: Task['status'][]
   priorities: Task['priority'][]
   departments: string[]
+  assignedToMe?: boolean
 }
 
 type AppDataContextValue = {
@@ -119,6 +120,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     statuses: ['Backlog', 'In Progress', 'Review', 'Completed'],
     priorities: ['High', 'Medium', 'Low'],
     departments: [],
+    assignedToMe: false,
   })
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -416,9 +418,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const matchesPriority = filters.priorities.includes(task.priority)
       const matchesDepartment =
         filters.departments.length === 0 || filters.departments.includes(task.department)
-      return matchesStatus && matchesPriority && matchesDepartment
+      const matchesAssignedToMe = !filters.assignedToMe || (user && task.assigneeId === user.uid)
+      return matchesStatus && matchesPriority && matchesDepartment && matchesAssignedToMe
     })
-  }, [tasks, filters])
+  }, [tasks, filters, user])
 
   const updateTask = async (taskId: string, updates: Partial<Omit<Task, 'id'>>) => {
     if (!firestore) {
