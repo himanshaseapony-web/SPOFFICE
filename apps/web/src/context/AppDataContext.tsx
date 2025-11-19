@@ -45,6 +45,7 @@ export type Task = {
   summary: string
   blockers?: string[]
   fileUrls?: string[]
+  createdBy?: string
 }
 
 export type ChatMessage = {
@@ -324,6 +325,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 summary: data.summary ?? '',
                 blockers: data.blockers ?? [],
                 fileUrls: data.fileUrls ?? [],
+                createdBy: data.createdBy ?? undefined,
               } satisfies Task
             })
             

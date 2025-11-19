@@ -64,8 +64,11 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
     // Department heads can edit all tasks in their department
     if (isDepartmentHead && task.department === userProfile.department) return true
     
-    // Users can only edit their own assigned tasks
+    // Users can edit tasks assigned to them (including when they create and assign to themselves)
     if (task.assigneeId === user.uid) return true
+    
+    // Users can also edit tasks they created (even if not assigned to themselves)
+    if (task.createdBy === user.uid) return true
     
     // Specialists can edit tasks assigned to them
     if (role === 'Specialist' && task.assigneeId === user.uid) return true

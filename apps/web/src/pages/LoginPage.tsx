@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { PasswordInput } from '../components/PasswordInput'
 
 export default function LoginPage() {
   const { user, authError, signInWithEmail, signInWithGoogle, signInWithGithub } = useAuth()
@@ -49,8 +50,7 @@ export default function LoginPage() {
           </label>
           <label>
             <span>Password</span>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required

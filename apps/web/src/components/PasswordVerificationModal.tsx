@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth'
 import { useAuth } from '../context/AuthContext'
+import { PasswordInput } from './PasswordInput'
 
 type PasswordVerificationModalProps = {
   isOpen: boolean
@@ -105,8 +106,7 @@ export function PasswordVerificationModal({
           ) : (
             <label>
               <span>Enter your password to confirm</span>
-              <input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value)

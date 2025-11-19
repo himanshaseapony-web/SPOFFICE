@@ -1,10 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
-import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore'
+import { doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore'
 import type { UserProfile } from '../context/AppDataContext'
 import { uploadProfileImage, deleteProfileImage } from '../lib/storage'
 import { Avatar } from '../components/Avatar'
+import { resetUserPassword, deleteUser } from '../lib/functions'
+import { PasswordVerificationModal } from '../components/PasswordVerificationModal'
+import { PasswordInput } from '../components/PasswordInput'
 
 type SettingsTab = 'workspace' | 'users' | 'departments' | 'profile'
 
@@ -34,6 +37,18 @@ export function SettingsPage() {
     role: 'Viewer' as UserProfile['role'],
     isDepartmentHead: false,
   })
+
+  // Password reset state
+  const [showPasswordResetModal, setShowPasswordResetModal] = useState(false)
+  const [showPasswordVerification, setShowPasswordVerification] = useState(false)
+  const [selectedUserForPasswordReset, setSelectedUserForPasswordReset] = useState<UserProfile | null>(null)
+  const [newPasswordValue, setNewPasswordValue] = useState('')
+  const [resettingPassword, setResettingPassword] = useState(false)
+
+  // User deletion state
+  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
+  const [selectedUserForDeletion, setSelectedUserForDeletion] = useState<UserProfile | null>(null)
+  const [deletingUser, setDeletingUser] = useState(false)
 
   // Automatically set department to "all" when Manager role is selected
   useEffect(() => {
@@ -466,6 +481,73 @@ export function SettingsPage() {
     }
   }
 
+  const handlePasswordReset = async () => {
+    if (!selectedUserForPasswordReset) return
+
+    // Validate password
+    if (!newPasswordValue || newPasswordValue.length < 6) {
+      setError('Password must be at least 6 characters long')
+      return
+    }
+
+    // Close password input modal and show verification
+    setShowPasswordResetModal(false)
+    setShowPasswordVerification(true)
+  }
+
+  const performPasswordReset = async () => {
+    if (!selectedUserForPasswordReset) return
+
+    setResettingPassword(true)
+    setError(null)
+    setSuccess(false)
+
+    try {
+      await resetUserPassword({ 
+        userId: selectedUserForPasswordReset.id,
+        newPassword: newPasswordValue
+      })
+
+      setSuccess(true)
+      setShowPasswordVerification(false)
+      setSelectedUserForPasswordReset(null)
+      setNewPasswordValue('')
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: any) {
+      console.error('Failed to reset password', err)
+      const errorMessage = err.message || err.code || 'Failed to reset password. Please try again.'
+      setError(errorMessage)
+    } finally {
+      setResettingPassword(false)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!selectedUserForDeletion) return
+
+    setDeletingUser(true)
+    setError(null)
+    setSuccess(false)
+
+    try {
+      // Delete user via Cloud Function (handles Auth, Firestore, and all related data)
+      await deleteUser({ userId: selectedUserForDeletion.id })
+
+      setSuccess(true)
+      setShowDeleteUserModal(false)
+      setSelectedUserForDeletion(null)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: any) {
+      console.error('Failed to delete user', err)
+      const errorMessage = err.message || err.code || 'Failed to delete user. Please try again.'
+      setError(errorMessage)
+      setShowDeleteUserModal(false)
+      setSelectedUserForDeletion(null)
+    } finally {
+      setDeletingUser(false)
+    }
+  }
+
   // Profile tab is accessible to all users, other tabs require Admin
   const isAdmin = userProfile?.role === 'Admin'
   const showAdminTabs = isAdmin
@@ -608,13 +690,12 @@ export function SettingsPage() {
                   </label>
                   <label>
                     <span>Password</span>
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
+                    <PasswordInput
                       value={newUser.password}
                       onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
                       placeholder="Minimum 6 characters"
+                      required
+                      minLength={6}
                     />
                     <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
                       Password must be at least 6 characters long
@@ -740,47 +821,87 @@ export function SettingsPage() {
                         )}
                       </td>
                       <td>
-                        <select
-                          value={profile.role}
-                          onChange={async (e) => {
-                            const newRole = e.target.value as UserProfile['role']
-                            console.log(`🔄 Changing role for ${profile.displayName} (${profile.id}) from ${profile.role} to ${newRole}`)
-                            
-                            // If changing from/to DepartmentHead, update isDepartmentHead flag
-                            const updates: Partial<UserProfile> = {
-                              role: newRole,
-                            }
-                            
-                            // Managers are in charge of all departments
-                            if (newRole === 'Manager') {
-                              updates.department = 'all'
-                              console.log('🔧 Setting department to "all" for Manager role')
-                            }
-                            
-                            if (newRole === 'DepartmentHead' && !profile.isDepartmentHead) {
-                              updates.isDepartmentHead = true
-                              console.log('🔧 Setting isDepartmentHead to true for DepartmentHead role')
-                            } else if (newRole !== 'DepartmentHead' && profile.isDepartmentHead) {
-                              updates.isDepartmentHead = false
-                              console.log('🔧 Setting isDepartmentHead to false (not DepartmentHead)')
-                            }
-                            
-                            console.log('📝 Final updates object:', updates)
-                            
-                            try {
-                              await handleUpdateUser(profile.id, updates)
-                              console.log('✅ Role update completed for user:', profile.id)
-                            } catch (error) {
-                              console.error('❌ Failed to update role:', error)
-                            }
-                          }}
-                          style={{ fontSize: '0.85rem', padding: '0.35rem 0.5rem' }}
-                        >
-                          <option value="Viewer">Viewer</option>
-                          <option value="Specialist">Specialist</option>
-                          <option value="DepartmentHead">Department Head</option>
-                          <option value="Manager">Manager</option>
-                        </select>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select
+                            value={profile.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value as UserProfile['role']
+                              console.log(`🔄 Changing role for ${profile.displayName} (${profile.id}) from ${profile.role} to ${newRole}`)
+                              
+                              // If changing from/to DepartmentHead, update isDepartmentHead flag
+                              const updates: Partial<UserProfile> = {
+                                role: newRole,
+                              }
+                              
+                              // Managers are in charge of all departments
+                              if (newRole === 'Manager') {
+                                updates.department = 'all'
+                                console.log('🔧 Setting department to "all" for Manager role')
+                              }
+                              
+                              if (newRole === 'DepartmentHead' && !profile.isDepartmentHead) {
+                                updates.isDepartmentHead = true
+                                console.log('🔧 Setting isDepartmentHead to true for DepartmentHead role')
+                              } else if (newRole !== 'DepartmentHead' && profile.isDepartmentHead) {
+                                updates.isDepartmentHead = false
+                                console.log('🔧 Setting isDepartmentHead to false (not DepartmentHead)')
+                              }
+                              
+                              console.log('📝 Final updates object:', updates)
+                              
+                              try {
+                                await handleUpdateUser(profile.id, updates)
+                                console.log('✅ Role update completed for user:', profile.id)
+                              } catch (error) {
+                                console.error('❌ Failed to update role:', error)
+                              }
+                            }}
+                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.5rem' }}
+                          >
+                            <option value="Viewer">Viewer</option>
+                            <option value="Specialist">Specialist</option>
+                            <option value="DepartmentHead">Department Head</option>
+                            <option value="Manager">Manager</option>
+                          </select>
+                          {user?.uid !== profile.id && (
+                            <>
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                onClick={() => {
+                                  setSelectedUserForPasswordReset(profile)
+                                  setShowPasswordResetModal(true)
+                                }}
+                                style={{ 
+                                  fontSize: '0.85rem', 
+                                  padding: '0.35rem 0.75rem',
+                                  color: 'var(--accent)',
+                                  borderColor: 'var(--accent)'
+                                }}
+                                title="Reset user password"
+                              >
+                                Reset Password
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                onClick={() => {
+                                  setSelectedUserForDeletion(profile)
+                                  setShowDeleteUserModal(true)
+                                }}
+                                style={{ 
+                                  fontSize: '0.85rem', 
+                                  padding: '0.35rem 0.75rem',
+                                  color: '#dc2626',
+                                  borderColor: '#dc2626'
+                                }}
+                                title="Delete user"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -930,6 +1051,108 @@ export function SettingsPage() {
             Signed in as {userProfile?.displayName ?? 'Unknown'} ({userProfile?.role})
           </small>
         </div>
+
+        {/* Password Reset Modal */}
+        {showPasswordResetModal && selectedUserForPasswordReset && (
+          <div className="modal-backdrop" role="presentation" onClick={() => {
+            setShowPasswordResetModal(false)
+            setSelectedUserForPasswordReset(null)
+            setNewPasswordValue('')
+            setError(null)
+          }}>
+            <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+              <header className="modal-header">
+                <div>
+                  <h2>Reset User Password</h2>
+                  <p>Enter a new password for &quot;{selectedUserForPasswordReset.displayName}&quot;. After verifying your password, the user&apos;s password will be reset.</p>
+                </div>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    setShowPasswordResetModal(false)
+                    setSelectedUserForPasswordReset(null)
+                    setNewPasswordValue('')
+                    setError(null)
+                  }}
+                  disabled={resettingPassword}
+                >
+                  Close
+                </button>
+              </header>
+              <form className="modal-form" onSubmit={(e) => {
+                e.preventDefault()
+                handlePasswordReset()
+              }}>
+                <label>
+                  <span>New Password</span>
+                  <PasswordInput
+                    value={newPasswordValue}
+                    onChange={(e) => {
+                      setNewPasswordValue(e.target.value)
+                      setError(null)
+                    }}
+                    placeholder="Enter new password (min 6 characters)"
+                    required
+                    minLength={6}
+                    disabled={resettingPassword}
+                    autoFocus
+                  />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                    Password must be at least 6 characters long
+                  </small>
+                </label>
+                {error && <p className="login-error">{error}</p>}
+                <footer className="modal-footer">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => {
+                      setShowPasswordResetModal(false)
+                      setSelectedUserForPasswordReset(null)
+                      setNewPasswordValue('')
+                      setError(null)
+                    }}
+                    disabled={resettingPassword}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={resettingPassword || !newPasswordValue || newPasswordValue.length < 6}
+                  >
+                    Continue
+                  </button>
+                </footer>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Password Verification for Password Reset */}
+        <PasswordVerificationModal
+          isOpen={showPasswordVerification}
+          onClose={() => {
+            setShowPasswordVerification(false)
+            setShowPasswordResetModal(true)
+          }}
+          onVerify={performPasswordReset}
+          title="Verify Your Password"
+          message={`Enter your password to confirm resetting the password for "${selectedUserForPasswordReset?.displayName}".`}
+        />
+
+        {/* Delete User Confirmation Modal */}
+        <PasswordVerificationModal
+          isOpen={showDeleteUserModal}
+          onClose={() => {
+            setShowDeleteUserModal(false)
+            setSelectedUserForDeletion(null)
+          }}
+          onVerify={handleDeleteUser}
+          title="Delete User"
+          message={`Are you sure you want to delete "${selectedUserForDeletion?.displayName}"? This will permanently remove the user account, profile, and all associated data. This action cannot be undone.`}
+        />
     </div>
   )
 }

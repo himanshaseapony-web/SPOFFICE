@@ -31,6 +31,12 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == taskData.assigneeId;
     }
     
+    function isCreator(taskData) {
+      return isAuthenticated() && 
+             'createdBy' in taskData && 
+             request.auth.uid == taskData.createdBy;
+    }
+    
     function isCurrentUserAdmin() {
       let profile = getUserProfileOrNull();
       return isAuthenticated() && 
@@ -99,6 +105,7 @@ service cloud.firestore {
       
       allow update: if isAuthenticated() && getUserProfileExists() && (
         // Can update if assigned to the task (can update status, priority, summary, fileUrls)
+        // This includes when a user creates a task and assigns it to themselves
         (isAssigned(resource.data) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'fileUrls', 'updatedAt'])) ||
         // Admin/Manager can update any field (Managers have department = "all" for full access)
