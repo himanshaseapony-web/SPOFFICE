@@ -15,6 +15,46 @@ function formatDueDate(dateString: string): string {
   })
 }
 
+function getTimeUntilDeadline(dueDateString: string): { text: string; color: string; isOverdue: boolean } {
+  if (!dueDateString) {
+    return { text: 'No due date', color: 'var(--text-muted)', isOverdue: false }
+  }
+
+  const dueDate = new Date(dueDateString)
+  if (isNaN(dueDate.getTime())) {
+    return { text: 'Invalid date', color: 'var(--text-muted)', isOverdue: false }
+  }
+
+  const now = new Date()
+  // Set time to start of day for accurate day calculations
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const due = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+
+  // Calculate difference in milliseconds
+  const diffMs = due.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    // Overdue
+    const daysOverdue = Math.abs(diffDays)
+    return {
+      text: daysOverdue === 1 ? 'Overdue by 1 day' : `Overdue by ${daysOverdue} days`,
+      color: '#dc2626',
+      isOverdue: true,
+    }
+  } else if (diffDays === 0) {
+    return { text: 'Due today', color: '#f59e0b', isOverdue: false }
+  } else if (diffDays === 1) {
+    return { text: 'Due tomorrow', color: '#f59e0b', isOverdue: false }
+  } else if (diffDays <= 3) {
+    return { text: `${diffDays} days remaining`, color: '#f59e0b', isOverdue: false }
+  } else if (diffDays <= 7) {
+    return { text: `${diffDays} days remaining`, color: 'var(--accent)', isOverdue: false }
+  } else {
+    return { text: `${diffDays} days remaining`, color: 'var(--text-muted)', isOverdue: false }
+  }
+}
+
 export function InProgressTasksPage() {
   const { tasks, allUserProfiles } = useAppData()
 
@@ -207,7 +247,30 @@ export function InProgressTasksPage() {
                           >
                             {priorityLabel[task.priority]}
                           </span>
-                          <span>Due: {formatDueDate(task.dueDate)}</span>
+                          {(() => {
+                            const deadline = getTimeUntilDeadline(task.dueDate)
+                            return (
+                              <span
+                                style={{
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '0.25rem',
+                                  background: deadline.isOverdue
+                                    ? '#dc262620'
+                                    : deadline.color === '#f59e0b'
+                                    ? '#f59e0b20'
+                                    : deadline.color === 'var(--accent)'
+                                    ? 'var(--accent-soft)'
+                                    : 'var(--surface-elevated)',
+                                  color: deadline.color,
+                                  fontWeight: 500,
+                                  border: deadline.isOverdue ? '1px solid #dc262640' : 'none',
+                                }}
+                                title={`Due: ${formatDueDate(task.dueDate)}`}
+                              >
+                                {deadline.text}
+                              </span>
+                            )
+                          })()}
                           {task.fileUrls && task.fileUrls.length > 0 && (
                             <span
                               style={{
