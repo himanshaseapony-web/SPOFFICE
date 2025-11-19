@@ -428,6 +428,11 @@
   color: #2b8a59;
 }
 
+:root.dark .pill-complete {
+  background: #16a34a;
+  color: #ffffff;
+}
+
 .priority {
   display: inline-flex;
   align-items: center;

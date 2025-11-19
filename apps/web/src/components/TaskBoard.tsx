@@ -208,6 +208,34 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
     }
   }
 
+  const handleDueDateChange = async (taskId: string, newDueDate: string) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (!canEditTask(task)) return
+    setUpdating(taskId)
+    setUpdateError(null)
+    try {
+      // Convert empty string to empty string (clear due date), or keep the date value
+      const dateValue = newDueDate || ''
+      await updateTask(taskId, { dueDate: dateValue })
+    } catch (error) {
+      console.error('Failed to update task due date', error)
+      setUpdateError('Failed to update task due date. Please try again.')
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  // Helper function to convert date string to YYYY-MM-DD format for input[type="date"]
+  const formatDateForInput = (dateString: string | undefined): string => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const handleAddUrl = async () => {
     if (!selectedTask || !newUrl.trim()) return
     
@@ -388,7 +416,52 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
             </div>
             <div>
               <span className="section-label">Due</span>
-              {selectedTask?.dueDate ? (
+              {canEdit && selectedTask ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <input
+                    type="date"
+                    value={formatDateForInput(selectedTask.dueDate)}
+                    onChange={(e) => handleDueDateChange(selectedTask.id, e.target.value)}
+                    disabled={updating === selectedTask.id}
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid var(--border-soft)',
+                      fontSize: '0.9rem',
+                      background: 'var(--surface-default)',
+                      color: 'var(--text-primary)',
+                      cursor: updating === selectedTask.id ? 'not-allowed' : 'pointer',
+                      opacity: updating === selectedTask.id ? 0.6 : 1,
+                    }}
+                  />
+                  {selectedTask.dueDate && (() => {
+                    const deadline = getTimeUntilDeadline(selectedTask.dueDate)
+                    return (
+                      <span
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '0.375rem',
+                          background: deadline.isOverdue
+                            ? '#dc262620'
+                            : deadline.color === '#f59e0b'
+                            ? '#f59e0b20'
+                            : deadline.color === 'var(--accent)'
+                            ? 'var(--accent-soft)'
+                            : 'var(--surface-elevated)',
+                          color: deadline.color,
+                          fontWeight: 600,
+                          border: deadline.isOverdue ? '1px solid #dc262640' : 'none',
+                          fontSize: '0.875rem',
+                          display: 'inline-block',
+                          width: 'fit-content',
+                        }}
+                      >
+                        {deadline.text}
+                      </span>
+                    )
+                  })()}
+                </div>
+              ) : selectedTask?.dueDate ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <p style={{ margin: 0 }}>{formatDueDate(selectedTask.dueDate)}</p>
                   {(() => {
