@@ -912,51 +912,107 @@ export function SettingsPage() {
             <div style={{ marginBottom: '1.5rem' }}>
               <h3>Department Heads</h3>
               <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
-                Department heads can view and manage all tasks in their department. Assign department
-                heads to give them oversight of their team&apos;s work.
+                Department heads can view and manage all tasks in their department. You can assign multiple
+                department heads per department to give them oversight of their team&apos;s work.
               </p>
             </div>
 
             <div className="summary-list">
               {departments.map((dept) => {
-                const head = departmentHeads.find((h) => h.department === dept.name)
+                const deptHeads = departmentHeads.filter((h) => h.department === dept.name)
+                const availableUsers = allUserProfiles.filter(
+                  (u) => u.department === dept.name && !u.isDepartmentHead
+                )
+                
                 return (
-                  <div key={dept.id} className="summary-card">
-                    <div>
+                  <div key={dept.id} className="summary-card" style={{ padding: '1.5rem' }}>
+                    <div style={{ marginBottom: '1rem' }}>
                       <span className="section-label">{dept.name}</span>
-                      <strong>{head ? head.displayName : 'No head assigned'}</strong>
-                      {head && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{head.email}</span>}
+                      {deptHeads.length === 0 ? (
+                        <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
+                          No department heads assigned
+                        </p>
+                      ) : (
+                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {deptHeads.map((head) => (
+                            <div
+                              key={head.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '0.75rem',
+                                background: 'var(--surface-elevated)',
+                                borderRadius: '0.5rem',
+                                border: '1px solid var(--border-soft)',
+                              }}
+                            >
+                              <div>
+                                <strong style={{ display: 'block' }}>{head.displayName}</strong>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{head.email}</span>
+                              </div>
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                onClick={() => {
+                                  handleUpdateUser(head.id, {
+                                    isDepartmentHead: false,
+                                    role: head.role === 'DepartmentHead' ? 'Specialist' : head.role,
+                                  })
+                                }}
+                                style={{
+                                  fontSize: '0.85rem',
+                                  padding: '0.35rem 0.75rem',
+                                  color: '#dc2626',
+                                  borderColor: '#dc2626',
+                                }}
+                                title="Remove as department head"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <select
-                        value={head?.id || ''}
-                        onChange={(e) => {
-                          const userId = e.target.value
-                          if (userId) {
-                            // Remove department head from current user if exists
-                            if (head) {
-                              handleUpdateUser(head.id, { isDepartmentHead: false, role: 'Specialist' })
+                    {availableUsers.length > 0 && (
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          Add Department Head:
+                        </label>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            const userId = e.target.value
+                            if (userId) {
+                              const selectedUser = allUserProfiles.find((u) => u.id === userId)
+                              if (selectedUser) {
+                                handleUpdateUser(userId, {
+                                  isDepartmentHead: true,
+                                  role: 'DepartmentHead',
+                                  department: dept.name,
+                                })
+                                // Reset select
+                                e.target.value = ''
+                              }
                             }
-                            // Set new department head
-                            handleUpdateUser(userId, {
-                              isDepartmentHead: true,
-                              role: 'DepartmentHead',
-                              department: dept.name,
-                            })
-                          }
-                        }}
-                        style={{ fontSize: '0.85rem', padding: '0.5rem' }}
-                      >
-                        <option value="">Select user...</option>
-                        {allUserProfiles
-                          .filter((u) => u.department === dept.name)
-                          .map((u) => (
+                          }}
+                          style={{ fontSize: '0.85rem', padding: '0.5rem', width: '100%' }}
+                        >
+                          <option value="">Select user to add as department head...</option>
+                          {availableUsers.map((u) => (
                             <option key={u.id} value={u.id}>
                               {u.displayName} ({u.role})
                             </option>
                           ))}
-                      </select>
-                    </div>
+                        </select>
+                      </div>
+                    )}
+                    {availableUsers.length === 0 && deptHeads.length > 0 && (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                        All users in this department are already department heads
+                      </p>
+                    )}
                   </div>
                 )
               })}
