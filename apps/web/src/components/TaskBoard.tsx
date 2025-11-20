@@ -245,9 +245,20 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
       // to preserve the completion history. If needed, this can be added later.
       
       await updateTask(taskId, updates)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update task status', error)
-      setUpdateError('Failed to update task status. Please try again.')
+      let errorMessage = 'Failed to update task status. Please try again.'
+      
+      // Provide more specific error messages
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'Permission denied. You may not have permission to update this task. Please check your role and task assignment.'
+      } else if (error?.code === 'unavailable') {
+        errorMessage = 'Firestore is unavailable. Please check your internet connection and try again.'
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      setUpdateError(errorMessage)
     } finally {
       setUpdating(null)
     }
