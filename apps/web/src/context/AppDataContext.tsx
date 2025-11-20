@@ -17,7 +17,6 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  deleteField,
   where,
   type CollectionReference,
   type DocumentData,
