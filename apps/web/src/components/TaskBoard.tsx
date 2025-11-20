@@ -773,7 +773,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
           </section>
         </div>
         </div>
-        )
+          )
         ) : (
           // Completed Tasks Calendar View
           completedTasks.length === 0 ? (
