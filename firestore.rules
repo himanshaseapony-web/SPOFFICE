@@ -104,10 +104,10 @@ service cloud.firestore {
           request.resource.data.fileUrls.size() <= 50));
       
       allow update: if isAuthenticated() && getUserProfileExists() && (
-        // Can update if assigned to the task (can update status, priority, summary, fileUrls, completedAt)
+        // Can update if assigned to the task (can update status, priority, summary, fileUrls, completedAt, dueDate)
         // This includes when a user creates a task and assigns it to themselves
         (isAssigned(resource.data) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'fileUrls', 'completedAt', 'updatedAt'])) ||
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'fileUrls', 'completedAt', 'dueDate', 'updatedAt'])) ||
         // Admin/Manager can update any field (Managers have department = "all" for full access)
         hasRole(['Admin', 'Manager']) ||
         // Department heads can update tasks in their department
@@ -118,7 +118,7 @@ service cloud.firestore {
         (getUserProfileOrNull() != null && 
          getUserProfileOrNull().department == resource.data.department && 
          hasRole(['Specialist']) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'completedAt', 'updatedAt']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'summary', 'completedAt', 'dueDate', 'updatedAt']))
       );
       
       allow delete: if isAuthenticated() && hasRole(['Admin']);

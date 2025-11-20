@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useCallback,
   useRef,
   useState,
   type ReactNode,
@@ -14,6 +15,8 @@ import {
   getFirestore,
   onSnapshot,
   query,
+  orderBy,
+  limit,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -26,7 +29,7 @@ import {
 } from 'firebase/firestore'
 import { getFirebaseApp } from '../lib/firebase'
 import { useAuth } from './AuthContext'
-import { playNotificationSound } from '../lib/notifications'
+import { playNotificationSound, showDesktopNotification } from '../lib/notifications'
 
 export type Department = {
   id: string
@@ -83,6 +86,16 @@ type AppDataContextValue = {
   tasks: Task[]
   filteredTasks: Task[]
   chatMessages: ChatMessage[]
+  companyChatMessages: Array<{
+    id: string
+    author: string
+    authorId: string
+    role: string
+    createdAt: Date
+    text: string
+  }>
+  companyChatUnreadCount: number
+  markCompanyChatAsRead: () => void
   userProfile: UserProfile | null
   allUserProfiles: UserProfile[]
   loading: boolean
@@ -109,6 +122,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [departments, setDepartments] = useState<Department[]>(DEFAULT_DEPARTMENTS)
   const [tasks, setTasks] = useState<Task[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [companyChatMessages, setCompanyChatMessages] = useState<Array<{
+    id: string
+    author: string
+    authorId: string
+    role: string
+    createdAt: Date
+    text: string
+  }>>([])
+  const [companyChatUnreadCount, setCompanyChatUnreadCount] = useState(0)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [allUserProfiles, setAllUserProfiles] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,7 +138,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [dataError, setDataError] = useState<Error | null>(null)
   const tasksUnsubscribeRef = useRef<Unsubscribe | null>(null)
   const chatsUnsubscribeRef = useRef<Unsubscribe | null>(null)
+  const companyChatsUnsubscribeRef = useRef<Unsubscribe | null>(null)
   const previousChatMessageIdsRef = useRef<Set<string>>(new Set())
+  const previousCompanyChatMessageIdsRef = useRef<Set<string>>(new Set())
   const [filters, setFilters] = useState<TaskFilters>({
     statuses: ['Backlog', 'In Progress', 'Review', 'Completed'],
     priorities: ['High', 'Medium', 'Low'],
@@ -410,8 +434,104 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       if (chatsUnsubscribeRef.current) {
         chatsUnsubscribeRef.current()
       }
+      if (companyChatsUnsubscribeRef.current) {
+        companyChatsUnsubscribeRef.current()
+      }
     }
   }, [firestore, user])
+
+  // Load company chat messages and track unread count
+  useEffect(() => {
+    if (!firestore || !user) {
+      setCompanyChatMessages([])
+      setCompanyChatUnreadCount(0)
+      return () => {}
+    }
+
+    const companyChatsRef = collection(firestore, 'companyChats')
+    const companyChatsQuery = query(
+      companyChatsRef,
+      orderBy('createdAt', 'desc'),
+      limit(100)
+    )
+
+    companyChatsUnsubscribeRef.current = onSnapshot(
+      companyChatsQuery,
+      (snapshot) => {
+        const messages = snapshot.docs.map((docSnapshot) => {
+          const data = docSnapshot.data()
+          return {
+            id: docSnapshot.id,
+            author: data.author ?? '',
+            authorId: data.authorId ?? '',
+            role: data.role ?? '',
+            createdAt: data.createdAt?.toDate?.() ?? new Date(),
+            text: data.text ?? '',
+          }
+        })
+
+        // Get last read timestamp from localStorage
+        const lastReadKey = `companyChat_lastRead_${user.uid}`
+        const lastReadTimestamp = localStorage.getItem(lastReadKey)
+        const lastReadDate = lastReadTimestamp ? new Date(lastReadTimestamp) : null
+
+        // Calculate unread count (messages after last read that aren't from current user)
+        const unreadCount = messages.filter((msg) => {
+          if (msg.authorId === user.uid) return false // Don't count own messages
+          if (!lastReadDate) return true // If never read, count all messages
+          return msg.createdAt > lastReadDate
+        }).length
+
+        setCompanyChatUnreadCount(unreadCount)
+
+        // Check for new messages (not sent by current user)
+        const currentMessageIds = new Set(messages.map(m => m.id))
+        const previousIds = previousCompanyChatMessageIdsRef.current
+
+        // Find new messages that weren't in the previous set
+        const newMessages = messages.filter(
+          msg => !previousIds.has(msg.id) && msg.authorId !== user.uid
+        )
+
+        // Play notification sound and show desktop notification for new messages
+        if (newMessages.length > 0 && previousIds.size > 0) {
+          playNotificationSound()
+          
+          // Show desktop notification for the most recent new message
+          const latestMessage = newMessages[0]
+          showDesktopNotification('New Company Chat Message', {
+            body: `${latestMessage.author}: ${latestMessage.text.substring(0, 100)}${latestMessage.text.length > 100 ? '...' : ''}`,
+            tag: 'company-chat',
+            requireInteraction: false,
+          })
+        }
+
+        // Update previous message IDs
+        previousCompanyChatMessageIdsRef.current = currentMessageIds
+
+        // Reverse to show oldest first
+        setCompanyChatMessages(messages.reverse())
+      },
+      (error) => {
+        console.error('Failed to load company chat messages', error)
+      }
+    )
+
+    return () => {
+      if (companyChatsUnsubscribeRef.current) {
+        companyChatsUnsubscribeRef.current()
+      }
+    }
+  }, [firestore, user])
+
+  // Function to mark company chat as read
+  const markCompanyChatAsRead = useCallback(() => {
+    if (!user) return
+    const lastReadKey = `companyChat_lastRead_${user.uid}`
+    localStorage.setItem(lastReadKey, new Date().toISOString())
+    setCompanyChatUnreadCount(0)
+  }, [user])
+
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const filteredTasks = useMemo(() => {
@@ -477,6 +597,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       tasks,
       filteredTasks,
       chatMessages,
+      companyChatMessages,
+      companyChatUnreadCount,
+      markCompanyChatAsRead,
       userProfile,
       allUserProfiles,
       loading,
@@ -492,6 +615,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     [
       allUserProfiles,
       chatMessages,
+      companyChatMessages,
+      companyChatUnreadCount,
       dataError,
       departments,
       firestore,

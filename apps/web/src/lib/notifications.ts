@@ -32,3 +32,34 @@ export function playNotificationSound() {
   }
 }
 
+/**
+ * Shows a desktop notification
+ */
+export function showDesktopNotification(title: string, options?: NotificationOptions) {
+  // Check if the browser supports notifications
+  if (!('Notification' in window)) {
+    console.warn('This browser does not support desktop notifications')
+    return
+  }
+
+  // Check if permission has been granted
+  if (Notification.permission === 'granted') {
+    new Notification(title, {
+      icon: '/vite.svg',
+      badge: '/vite.svg',
+      ...options,
+    })
+  } else if (Notification.permission !== 'denied') {
+    // Request permission
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        new Notification(title, {
+          icon: '/vite.svg',
+          badge: '/vite.svg',
+          ...options,
+        })
+      }
+    })
+  }
+}
+

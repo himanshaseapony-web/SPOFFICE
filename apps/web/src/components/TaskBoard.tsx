@@ -288,9 +288,20 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
       // Convert empty string to empty string (clear due date), or keep the date value
       const dateValue = newDueDate || ''
       await updateTask(taskId, { dueDate: dateValue })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update task due date', error)
-      setUpdateError('Failed to update task due date. Please try again.')
+      let errorMessage = 'Failed to update task due date. Please try again.'
+      
+      // Provide more specific error messages
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'Permission denied. You may not have permission to update this task. Please check your role and task assignment.'
+      } else if (error?.code === 'unavailable') {
+        errorMessage = 'Firestore is unavailable. Please check your internet connection and try again.'
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      setUpdateError(errorMessage)
     } finally {
       setUpdating(null)
     }

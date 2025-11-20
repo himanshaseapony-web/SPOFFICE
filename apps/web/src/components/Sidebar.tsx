@@ -3,7 +3,7 @@ import { navItems } from '../config/navigation'
 import { useAppData } from '../context/AppDataContext'
 
 export function Sidebar() {
-  const { userProfile, departments } = useAppData()
+  const { userProfile, departments, companyChatUnreadCount } = useAppData()
   const allowedDepartments =
     departments.length > 0
       ? departments
@@ -25,19 +25,45 @@ export function Sidebar() {
         <ul>
           {navItems
             .filter((item) => !item.allowedRoles || item.allowedRoles.includes(normalizedRole))
-            .map((item) => (
-              <li key={item.path}>
-                <NavLink
-                  to={item.path}
-                  className={({ isActive }) =>
-                    isActive ? 'sidebar-link active' : 'sidebar-link'
-                  }
-                  end={item.path === '/'}
-                >
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
+            .map((item) => {
+              const isCompanyChat = item.path === '/company-chat'
+              const unreadCount = isCompanyChat ? companyChatUnreadCount : 0
+              
+              return (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    className={({ isActive }) =>
+                      isActive ? 'sidebar-link active' : 'sidebar-link'
+                    }
+                    end={item.path === '/'}
+                  >
+                    {item.label}
+                    {unreadCount > 0 && (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: '20px',
+                          height: '20px',
+                          padding: '0 6px',
+                          marginLeft: '8px',
+                          background: 'var(--accent)',
+                          color: 'white',
+                          borderRadius: '10px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </NavLink>
+                </li>
+              )
+            })}
         </ul>
       </div>
 
