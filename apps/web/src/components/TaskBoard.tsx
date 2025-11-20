@@ -989,7 +989,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
             </div>
           )
         )
-      )}
+      }
 
       <PasswordVerificationModal
         isOpen={showDeleteModal}
