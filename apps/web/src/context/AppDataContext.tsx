@@ -17,6 +17,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   where,
   type CollectionReference,
   type DocumentData,
@@ -47,6 +48,7 @@ export type Task = {
   blockers?: string[]
   fileUrls?: string[]
   createdBy?: string
+  completedAt?: string
 }
 
 export type ChatMessage = {
@@ -330,6 +332,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                 blockers: data.blockers ?? [],
                 fileUrls: data.fileUrls ?? [],
                 createdBy: data.createdBy ?? undefined,
+                completedAt: data.completedAt ?? undefined,
               } satisfies Task
             })
             
@@ -428,10 +431,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       throw new Error('Firestore is not initialized')
     }
     const taskRef = doc(firestore, 'tasks', taskId)
-    await updateDoc(taskRef, {
-      ...updates,
+    
+    // Filter out undefined values and prepare update object
+    const updateData: Record<string, any> = {
       updatedAt: new Date().toISOString(),
+    }
+    
+    // Only include defined values in the update
+    Object.keys(updates).forEach((key) => {
+      const value = updates[key as keyof typeof updates]
+      if (value !== undefined) {
+        updateData[key] = value
+      }
     })
+    
+    await updateDoc(taskRef, updateData)
   }
 
   const deleteTask = async (taskId: string) => {

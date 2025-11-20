@@ -7,6 +7,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { label: 'Overview', path: '/' },
   { label: 'Task Board', path: '/tasks' },
+  { label: 'My Tasks', path: '/my-tasks', allowedRoles: ['Specialist', 'DepartmentHead'] },
   { label: 'Company Chat', path: '/company-chat' },
   { label: 'In Progress', path: '/in-progress', allowedRoles: ['Admin', 'Manager'] },
   { label: 'Departments', path: '/departments', allowedRoles: ['Admin', 'Manager', 'DepartmentHead'] },

@@ -118,6 +118,8 @@ function CollapsibleSummary({ summary }: { summary: string }) {
   )
 }
 
+type ViewMode = 'active' | 'completed'
+
 export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardProps) {
   const { updateTask, deleteTask, userProfile } = useAppData()
   const { user } = useAuth()
@@ -126,11 +128,55 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
   const [isAddingUrl, setIsAddingUrl] = useState(false)
   const [newUrl, setNewUrl] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('active')
 
-  const selectedTask = useMemo(
-    () => tasks.find((task) => task.id === selectedId) ?? tasks[0],
-    [tasks, selectedId],
-  )
+  // Separate active and completed tasks
+  const activeTasks = useMemo(() => {
+    return tasks.filter((task) => task.status !== 'Completed')
+  }, [tasks])
+
+  const completedTasks = useMemo(() => {
+    return tasks.filter((task) => task.status === 'Completed')
+  }, [tasks])
+
+  // Group completed tasks by date
+  const completedTasksByDate = useMemo(() => {
+    const grouped: Record<string, Task[]> = {}
+    
+    completedTasks.forEach((task) => {
+      // Use completedAt if available, otherwise use updatedAt or current date
+      const completionDate = task.completedAt 
+        ? new Date(task.completedAt)
+        : new Date()
+      
+      // Format as YYYY-MM-DD for grouping
+      const dateKey = completionDate.toISOString().split('T')[0]
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = []
+      }
+      grouped[dateKey].push(task)
+    })
+    
+    // Sort dates in descending order (most recent first)
+    const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+    
+    // Sort tasks within each date by completion time (most recent first)
+    sortedDates.forEach((date) => {
+      grouped[date].sort((a, b) => {
+        const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0
+        const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0
+        return dateB - dateA
+      })
+    })
+    
+    return { grouped, sortedDates }
+  }, [completedTasks])
+
+  const selectedTask = useMemo(() => {
+    const taskList = viewMode === 'active' ? activeTasks : completedTasks
+    return taskList.find((task) => task.id === selectedId) ?? taskList[0]
+  }, [tasks, selectedId, viewMode, activeTasks, completedTasks])
 
   // Check if user can edit a specific task
   const canEditTask = (task: Task | undefined): boolean => {
@@ -189,7 +235,16 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
     setUpdating(taskId)
     setUpdateError(null)
     try {
-      await updateTask(taskId, { status: newStatus })
+      const updates: Partial<Omit<Task, 'id'>> = { status: newStatus }
+      
+      // Set completedAt timestamp when task is marked as Completed
+      if (newStatus === 'Completed' && task?.status !== 'Completed') {
+        updates.completedAt = new Date().toISOString()
+      }
+      // Note: We don't clear completedAt when moving out of Completed status
+      // to preserve the completion history. If needed, this can be added later.
+      
+      await updateTask(taskId, updates)
     } catch (error) {
       console.error('Failed to update task status', error)
       setUpdateError('Failed to update task status. Please try again.')
@@ -265,6 +320,35 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
     }
   }
 
+  // Format date for display
+  const formatDateDisplay = (dateString: string): string => {
+    const date = new Date(dateString)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    
+    // Check if it's today
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today'
+    }
+    // Check if it's yesterday
+    if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday'
+    }
+    // Check if it's this week
+    const daysDiff = Math.floor((today.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+    if (daysDiff <= 7) {
+      return date.toLocaleDateString(undefined, { weekday: 'long' })
+    }
+    // Otherwise show full date
+    return date.toLocaleDateString(undefined, { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+  }
+
   return (
     <section className="panel panel-primary">
       <header className="panel-header">
@@ -272,20 +356,67 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
           <h2>Task Board</h2>
           <p>Monitor key workstreams and unblock teams quickly.</p>
         </div>
-        <button className="ghost-button" type="button" onClick={onFilter}>
-          Filter
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.25rem', background: 'var(--surface-elevated)', padding: '0.25rem', borderRadius: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('active')
+                onSelect('')
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.375rem',
+                border: 'none',
+                background: viewMode === 'active' ? 'var(--accent)' : 'transparent',
+                color: viewMode === 'active' ? 'white' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'active' ? 600 : 400,
+                fontSize: '0.875rem',
+                transition: 'all 0.2s',
+              }}
+            >
+              Active Tasks {activeTasks.length > 0 && `(${activeTasks.length})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('completed')
+                onSelect('')
+              }}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '0.375rem',
+                border: 'none',
+                background: viewMode === 'completed' ? 'var(--accent)' : 'transparent',
+                color: viewMode === 'completed' ? 'white' : 'var(--text-primary)',
+                cursor: 'pointer',
+                fontWeight: viewMode === 'completed' ? 600 : 400,
+                fontSize: '0.875rem',
+                transition: 'all 0.2s',
+              }}
+            >
+              Completed {completedTasks.length > 0 && `(${completedTasks.length})`}
+            </button>
+          </div>
+          {viewMode === 'active' && (
+            <button className="ghost-button" type="button" onClick={onFilter}>
+              Filter
+            </button>
+          )}
+        </div>
       </header>
 
-      {tasks.length === 0 ? (
-        <div className="empty-state">
-          <h3>No tasks yet</h3>
-          <p>Create a task to get started. Assign it to Programming, 3D Design, or UI/UX.</p>
-        </div>
-      ) : (
-      <div className="task-board">
-        <div className="task-list">
-          {tasks.map((task) => (
+      {viewMode === 'active' ? (
+        activeTasks.length === 0 ? (
+          <div className="empty-state">
+            <h3>No active tasks</h3>
+            <p>All tasks are completed! Check the Completed tab to see your completed work.</p>
+          </div>
+        ) : (
+          <div className="task-board">
+            <div className="task-list">
+              {activeTasks.map((task) => (
             <button
               key={task.id}
               type="button"
@@ -642,6 +773,222 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
           </section>
         </div>
         </div>
+        )
+        ) : (
+          // Completed Tasks Calendar View
+          completedTasks.length === 0 ? (
+            <div className="empty-state">
+              <h3>No completed tasks yet</h3>
+              <p>Completed tasks will appear here organized by completion date.</p>
+            </div>
+          ) : (
+            <div className="task-board">
+              <div className="task-list" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                  {completedTasksByDate.sortedDates.map((dateKey) => {
+                    const dateTasks = completedTasksByDate.grouped[dateKey]
+                    const displayDate = formatDateDisplay(dateKey)
+                    const taskCount = dateTasks.length
+
+                    return (
+                      <div key={dateKey} style={{ borderBottom: '1px solid var(--border-soft)', paddingBottom: '1.5rem' }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.75rem', 
+                          marginBottom: '1rem',
+                          paddingBottom: '0.75rem',
+                          borderBottom: '2px solid var(--accent)'
+                        }}>
+                          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
+                            {displayDate}
+                          </h3>
+                          <span style={{ 
+                            fontSize: '0.875rem', 
+                            color: 'var(--text-muted)',
+                            background: 'var(--surface-elevated)',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '1rem'
+                          }}>
+                            {taskCount} {taskCount === 1 ? 'task' : 'tasks'}
+                          </span>
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}>
+                          {dateTasks.map((task) => {
+                            const completionTime = task.completedAt 
+                              ? new Date(task.completedAt).toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })
+                              : ''
+
+                            return (
+                              <button
+                                key={task.id}
+                                type="button"
+                                onClick={() => onSelect(task.id)}
+                                className={selectedTask?.id === task.id ? 'task-card active' : 'task-card'}
+                                style={{
+                                  textAlign: 'left',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '0.5rem',
+                                  padding: '1rem'
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <div style={{ 
+                                      fontSize: '0.75rem', 
+                                      color: 'var(--text-muted)',
+                                      marginBottom: '0.25rem'
+                                    }}>
+                                      {task.id}
+                                    </div>
+                                    <h4 style={{ 
+                                      margin: 0, 
+                                      fontSize: '1rem', 
+                                      fontWeight: 600,
+                                      color: 'var(--text-primary)'
+                                    }}>
+                                      {task.title}
+                                    </h4>
+                                  </div>
+                                  {completionTime && (
+                                    <span style={{ 
+                                      fontSize: '0.75rem', 
+                                      color: 'var(--text-muted)',
+                                      whiteSpace: 'nowrap',
+                                      marginLeft: '0.5rem'
+                                    }}>
+                                      {completionTime}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <p style={{ 
+                                  margin: 0, 
+                                  fontSize: '0.875rem', 
+                                  color: 'var(--text-secondary)',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden'
+                                }}>
+                                  {task.summary}
+                                </p>
+                                
+                                <div style={{ 
+                                  display: 'flex', 
+                                  gap: '0.5rem', 
+                                  flexWrap: 'wrap',
+                                  marginTop: '0.5rem'
+                                }}>
+                                  <span className={priorityLabel[task.priority]}>
+                                    {task.priority}
+                                  </span>
+                                  <span style={{ 
+                                    fontSize: '0.75rem', 
+                                    color: 'var(--text-muted)',
+                                    padding: '0.25rem 0.5rem',
+                                    background: 'var(--surface-subtle)',
+                                    borderRadius: '0.25rem'
+                                  }}>
+                                    {task.department}
+                                  </span>
+                                  <span style={{ 
+                                    fontSize: '0.75rem', 
+                                    color: 'var(--text-muted)',
+                                    padding: '0.25rem 0.5rem',
+                                    background: 'var(--surface-subtle)',
+                                    borderRadius: '0.25rem'
+                                  }}>
+                                    {task.assignee}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Task Detail View for Completed Tasks */}
+              <div className="task-detail">
+                <header>
+                  <div>
+                    <span className="task-id">{selectedTask?.id}</span>
+                    <h3>{selectedTask?.title}</h3>
+                    {selectedTask?.completedAt && (
+                      <p style={{ margin: '0.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        Completed: {new Date(selectedTask.completedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </header>
+
+                <section className="detail-section">
+                  <span className="section-label">Summary</span>
+                  {selectedTask && <CollapsibleSummary summary={selectedTask.summary} />}
+                </section>
+
+                <section className="detail-grid">
+                  <div>
+                    <span className="section-label">Status</span>
+                    <p>{selectedTask?.status}</p>
+                  </div>
+                  <div>
+                    <span className="section-label">Priority</span>
+                    <p>{selectedTask?.priority}</p>
+                  </div>
+                  <div>
+                    <span className="section-label">Department</span>
+                    <p>{selectedTask?.department}</p>
+                  </div>
+                  <div>
+                    <span className="section-label">Assignee</span>
+                    <p>{selectedTask?.assignee}</p>
+                  </div>
+                </section>
+
+                {selectedTask?.fileUrls && selectedTask.fileUrls.length > 0 && (
+                  <section className="detail-section">
+                    <span className="section-label">File Links</span>
+                    <ul className="file-urls-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {selectedTask.fileUrls.map((url, index) => (
+                        <li key={index} style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ 
+                              color: 'var(--accent)', 
+                              textDecoration: 'none',
+                              wordBreak: 'break-all',
+                              flex: 1
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                            onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                          >
+                            {url}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+            </div>
+          )
+        )
       )}
 
       <PasswordVerificationModal

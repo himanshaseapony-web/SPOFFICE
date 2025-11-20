@@ -4,6 +4,7 @@ import { AppLayout } from './layouts/AppLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import OverviewPage from './pages/OverviewPage'
 import TaskBoardPage from './pages/TaskBoardPage'
+import MyTasksPage from './pages/MyTasksPage'
 import CompanyChatPage from './pages/CompanyChatPage'
 import InProgressTasksPage from './pages/InProgressTasksPage'
 import DepartmentsPage from './pages/DepartmentsPage'
@@ -20,6 +21,14 @@ function App() {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<ProtectedRoute><OverviewPage /></ProtectedRoute>} />
           <Route path="tasks" element={<ProtectedRoute><TaskBoardPage /></ProtectedRoute>} />
+          <Route 
+            path="my-tasks" 
+            element={
+              <ProtectedRoute allowedRoles={['Specialist', 'DepartmentHead']}>
+                <MyTasksPage />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="company-chat" element={<ProtectedRoute><CompanyChatPage /></ProtectedRoute>} />
           <Route 
             path="in-progress" 
