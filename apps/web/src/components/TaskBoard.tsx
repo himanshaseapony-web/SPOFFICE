@@ -34,7 +34,12 @@ function formatDueDate(value?: string) {
   })
 }
 
-function getTimeUntilDeadline(dueDateString: string): { text: string; color: string; isOverdue: boolean } {
+function getTimeUntilDeadline(dueDateString: string, taskStatus?: Task['status']): { text: string; color: string; isOverdue: boolean } {
+  // If task is completed, don't show overdue status
+  if (taskStatus === 'Completed') {
+    return { text: 'Completed', color: 'var(--text-muted)', isOverdue: false }
+  }
+
   if (!dueDateString) {
     return { text: 'No due date', color: 'var(--text-muted)', isOverdue: false }
   }
@@ -298,7 +303,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
               <div className="task-card-footer">
                 <span className={statusPillClass[task.status]}>{task.status}</span>
                 {(() => {
-                  const deadline = getTimeUntilDeadline(task.dueDate)
+                  const deadline = getTimeUntilDeadline(task.dueDate, task.status)
                   return (
                     <span
                       style={{
@@ -435,7 +440,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
                     }}
                   />
                   {selectedTask.dueDate && (() => {
-                    const deadline = getTimeUntilDeadline(selectedTask.dueDate)
+                    const deadline = getTimeUntilDeadline(selectedTask.dueDate, selectedTask.status)
                     return (
                       <span
                         style={{
@@ -465,7 +470,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   <p style={{ margin: 0 }}>{formatDueDate(selectedTask.dueDate)}</p>
                   {(() => {
-                    const deadline = getTimeUntilDeadline(selectedTask.dueDate)
+                    const deadline = getTimeUntilDeadline(selectedTask.dueDate, selectedTask.status)
                     return (
                       <span
                         style={{
