@@ -181,62 +181,107 @@ export function ReportsPage() {
   }
 
   // Export daily work update table to CSV
-  const handlePrintDailyUpdate = () => {
-    // Validate that at least one row with at least one task exists
-    const rowsWithTasks = tableRows.filter((row) => row.tasks.length > 0)
-    if (rowsWithTasks.length === 0) {
-      alert('Please add at least one member with at least one task before printing.')
-      return
-    }
-
-    // Format date for filename
-    const dateStr = updateDate ? updateDate : new Date().toISOString().split('T')[0]
-    const departmentName = userProfile?.department || 'Department'
+  const handlePrintDailyUpdate = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
     
-    // Create CSV rows - one row per task (Member, Task format)
-    const csvRows: string[][] = []
-    
-    // Add header
-    csvRows.push(['Member', 'Task'])
-    
-    // Add date and department info as comments/metadata
-    csvRows.push([`Date: ${dateStr}`, `Department: ${departmentName}`])
-    csvRows.push([]) // Empty row for spacing
-    
-    // Add data rows - one row per task, with member name on each row for better readability
-    rowsWithTasks.forEach((row) => {
-      if (row.tasks.length === 0) return
+    try {
+      console.log('📥 Starting CSV export...', { tableRows, updateDate })
       
-      // Add each task with member name for better print readability
-      row.tasks.forEach((task) => {
-        csvRows.push([
-          row.memberName,
-          task.replace(/"/g, '""') // Escape quotes
-        ])
+      // Validate that at least one row with at least one task exists
+      const rowsWithTasks = tableRows.filter((row) => row.tasks.length > 0)
+      console.log('✅ Rows with tasks:', rowsWithTasks.length)
+      
+      if (rowsWithTasks.length === 0) {
+        alert('Please add at least one member with at least one task before downloading.')
+        return
+      }
+
+      // Format date for filename
+      const dateStr = updateDate ? updateDate : new Date().toISOString().split('T')[0]
+      const departmentName = userProfile?.department || 'Department'
+      
+      // Create CSV rows - one row per task (Member, Task format)
+      const csvRows: string[][] = []
+      
+      // Add header
+      csvRows.push(['Member', 'Task'])
+      
+      // Add date and department info
+      csvRows.push([`Date: ${dateStr}`, `Department: ${departmentName}`])
+      csvRows.push(['', '']) // Empty row for spacing
+      
+      // Add data rows - one row per task, with member name on each row for better readability
+      rowsWithTasks.forEach((row) => {
+        if (row.tasks.length === 0) return
+        
+        // Add each task with member name for better print readability
+        row.tasks.forEach((task) => {
+          if (task && task.trim()) {
+            csvRows.push([
+              row.memberName || '',
+              task.trim() // Quotes will be escaped in CSV conversion
+            ])
+          }
+        })
+        
+        // Add empty row between members for readability
+        csvRows.push(['', ''])
       })
+
+      // Convert to CSV string
+      const csvContent = csvRows
+        .map((row) => {
+          // Handle empty rows
+          if (!row || row.length === 0) {
+            return ''
+          }
+          // Ensure we have at least 2 columns
+          const member = (row[0] || '').replace(/"/g, '""')
+          const task = (row[1] || '').replace(/"/g, '""')
+          return `"${member}","${task}"`
+        })
+        .join('\n')
+
+      console.log('📄 CSV Content generated:', csvContent.substring(0, 200) + '...')
+
+      // Add BOM for Excel compatibility
+      const BOM = '\uFEFF'
+      const csvWithBOM = BOM + csvContent
+
+      // Create and download file
+      const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
+      const sanitizedDeptName = departmentName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
+      const filename = `daily-work-update-${sanitizedDeptName}-${dateStr}.csv`
       
-      // Add empty row between members for readability
-      csvRows.push([])
-    })
-
-    // Convert to CSV string
-    const csvContent = csvRows
-      .map((row) => row.map((cell) => `"${cell}"`).join(','))
-      .join('\n')
-
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    const filename = `daily-work-update-${departmentName.replace(/\s+/g, '-').toLowerCase()}-${dateStr}.csv`
-    
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+      console.log('📁 Creating download:', { filename, blobSize: blob.size })
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      
+      link.href = url
+      link.download = filename
+      link.style.display = 'none'
+      document.body.appendChild(link)
+      
+      // Trigger download immediately (must be in same event handler)
+      link.click()
+      console.log('✅ Download triggered')
+      
+      // Cleanup after a short delay
+      setTimeout(() => {
+        if (link.parentNode) {
+          link.parentNode.removeChild(link)
+        }
+        window.URL.revokeObjectURL(url)
+        console.log('✅ Cleanup complete')
+      }, 200)
+      
+    } catch (error: any) {
+      console.error('❌ Error generating CSV:', error)
+      alert(`Failed to generate CSV file: ${error?.message || 'Unknown error'}. Please check the browser console for details.`)
+    }
   }
 
   // Check if user is a department head (either by flag or by role)
@@ -588,7 +633,11 @@ export function ReportsPage() {
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={handlePrintDailyUpdate}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handlePrintDailyUpdate(e)
+                  }}
                   disabled={tableRows.filter((row) => row.tasks.length > 0).length === 0}
                 >
                   📄 Download CSV / Print
