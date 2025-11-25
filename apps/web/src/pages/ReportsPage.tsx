@@ -93,7 +93,12 @@ export function ReportsPage() {
 
   // Get department members (only for department heads)
   const departmentMembers = useMemo(() => {
-    if (!userProfile || !userProfile.isDepartmentHead || !userProfile.department) {
+    if (!userProfile || !userProfile.department || userProfile.department === 'all') {
+      return []
+    }
+    // Check if user is department head by flag or role
+    const isDeptHead = (userProfile.isDepartmentHead ?? false) || userProfile.role === 'DepartmentHead'
+    if (!isDeptHead) {
       return []
     }
     return allUserProfiles.filter(
@@ -212,7 +217,9 @@ export function ReportsPage() {
       return
     }
 
-    if (!userProfile.isDepartmentHead || !userProfile.department) {
+    // Check if user is department head by flag or role
+    const isDeptHead = (userProfile.isDepartmentHead ?? false) || userProfile.role === 'DepartmentHead'
+    if (!isDeptHead || !userProfile.department || userProfile.department === 'all') {
       setCreateError('Only department heads can create daily work updates.')
       return
     }
@@ -307,7 +314,10 @@ export function ReportsPage() {
     }
   }
 
-  const isDepartmentHead = userProfile?.isDepartmentHead ?? false
+  // Check if user is a department head (either by flag or by role)
+  const isDepartmentHead = userProfile 
+    ? (userProfile.isDepartmentHead ?? false) || userProfile.role === 'DepartmentHead'
+    : false
   const userDepartment = userProfile?.department
 
   return (
@@ -318,7 +328,7 @@ export function ReportsPage() {
             <h2>Reporting Workspace</h2>
             <p>Generate exports and review historical performance.</p>
           </div>
-          {isDepartmentHead && userDepartment && (
+          {isDepartmentHead && userDepartment && userDepartment !== 'all' && (
             <button
               type="button"
               className="primary-button"
