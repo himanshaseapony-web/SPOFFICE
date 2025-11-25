@@ -3,7 +3,6 @@ import { AccessGuard } from '../components/AccessGuard'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
 import type { Task } from '../context/AppDataContext'
-import { collection, addDoc, Timestamp } from 'firebase/firestore'
 
 function exportTasksToCSV(tasks: Task[], filename: string) {
   const headers = ['ID', 'Title', 'Status', 'Priority', 'Department', 'Assignee', 'Due Date', 'Summary']
@@ -35,7 +34,7 @@ function exportTasksToCSV(tasks: Task[], filename: string) {
 }
 
 export function ReportsPage() {
-  const { tasks, departments, allUserProfiles, userProfile, firestore } = useAppData()
+  const { tasks, departments, allUserProfiles, userProfile } = useAppData()
   const { user } = useAuth()
   const [exporting, setExporting] = useState(false)
   const [isCreateUpdateOpen, setIsCreateUpdateOpen] = useState(false)
@@ -47,9 +46,6 @@ export function ReportsPage() {
     memberName: string
     tasks: string[] // Array of task descriptions
   }>>([])
-  const [isCreating, setIsCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [createSuccess, setCreateSuccess] = useState(false)
   const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({}) // rowId -> new task input
   
   const completedTasks = tasks.filter((task) => task.status === 'Completed')
@@ -184,79 +180,63 @@ export function ReportsPage() {
     )
   }
 
-  const handleCreateDailyUpdate = async () => {
-    if (!user || !userProfile || !firestore) {
-      setCreateError('Cannot create update. Please verify your authentication and try again.')
-      return
-    }
-
-    // Check if user is department head by flag or role
-    const isDeptHead = (userProfile.isDepartmentHead ?? false) || userProfile.role === 'DepartmentHead'
-    if (!isDeptHead || !userProfile.department || userProfile.department === 'all') {
-      setCreateError('Only department heads can create daily work updates.')
-      return
-    }
-
+  // Export daily work update table to CSV
+  const handlePrintDailyUpdate = () => {
     // Validate that at least one row with at least one task exists
-    const hasValidData = tableRows.some((row) => row.tasks.length > 0)
-    if (!hasValidData) {
-      setCreateError('Please add at least one member with at least one task.')
+    const rowsWithTasks = tableRows.filter((row) => row.tasks.length > 0)
+    if (rowsWithTasks.length === 0) {
+      alert('Please add at least one member with at least one task before printing.')
       return
     }
 
-    setIsCreating(true)
-    setCreateError(null)
-    setCreateSuccess(false)
-
-    try {
-      // Convert table rows to members with tasks format
-      const membersWithTasks = tableRows
-        .filter((row) => row.tasks.length > 0)
-        .map((row) => ({
-          userId: row.memberId,
-          userName: row.memberName,
-          tasksCompleted: row.tasks.map((taskTitle) => ({
-            taskTitle,
-            isManual: true, // All tasks are manual entries for printing
-          })),
-        }))
-
-      const updateData = {
-        date: updateDate,
-        department: userProfile.department,
-        createdBy: user.uid,
-        createdByName: userProfile.displayName,
-        createdAt: Timestamp.now(),
-        members: membersWithTasks,
-      }
-
-      await addDoc(collection(firestore, 'dailyWorkUpdates'), updateData)
-
-      setCreateSuccess(true)
-      setTableRows([])
-      setUpdateDate(new Date().toISOString().split('T')[0])
+    // Format date for filename
+    const dateStr = updateDate ? updateDate : new Date().toISOString().split('T')[0]
+    const departmentName = userProfile?.department || 'Department'
+    
+    // Create CSV rows - one row per task (Member, Task format)
+    const csvRows: string[][] = []
+    
+    // Add header
+    csvRows.push(['Member', 'Task'])
+    
+    // Add date and department info as comments/metadata
+    csvRows.push([`Date: ${dateStr}`, `Department: ${departmentName}`])
+    csvRows.push([]) // Empty row for spacing
+    
+    // Add data rows - one row per task, with member name on each row for better readability
+    rowsWithTasks.forEach((row) => {
+      if (row.tasks.length === 0) return
       
-      // Close modal after 2 seconds
-      setTimeout(() => {
-        setIsCreateUpdateOpen(false)
-        setCreateSuccess(false)
-      }, 2000)
-    } catch (error: any) {
-      console.error('Failed to create daily work update', error)
-      let errorMessage = 'Failed to create daily work update. Please try again.'
+      // Add each task with member name for better print readability
+      row.tasks.forEach((task) => {
+        csvRows.push([
+          row.memberName,
+          task.replace(/"/g, '""') // Escape quotes
+        ])
+      })
       
-      if (error?.code === 'permission-denied') {
-        errorMessage = 'Permission denied. You may not have permission to create daily work updates.'
-      } else if (error?.code === 'unavailable') {
-        errorMessage = 'Firestore is unavailable. Please check your internet connection and try again.'
-      } else if (error?.message) {
-        errorMessage = `Error: ${error.message}`
-      }
-      
-      setCreateError(errorMessage)
-    } finally {
-      setIsCreating(false)
-    }
+      // Add empty row between members for readability
+      csvRows.push([])
+    })
+
+    // Convert to CSV string
+    const csvContent = csvRows
+      .map((row) => row.map((cell) => `"${cell}"`).join(','))
+      .join('\n')
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    const filename = `daily-work-update-${departmentName.replace(/\s+/g, '-').toLowerCase()}-${dateStr}.csv`
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 
   // Check if user is a department head (either by flag or by role)
@@ -346,16 +326,14 @@ export function ReportsPage() {
           <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: '95vw', width: '1200px', maxHeight: '95vh', overflow: 'auto' }}>
             <header className="modal-header">
               <div>
-                <h2>Create Daily Work Update</h2>
-                <p>Create a printable daily work report for your department members.</p>
+                <h2>Daily Work Update Report</h2>
+                <p>Add members and their tasks to generate a printable CSV report. Click "Download CSV / Print" to export.</p>
               </div>
               <button
                 type="button"
                 className="ghost-button"
                 onClick={() => {
                   setIsCreateUpdateOpen(false)
-                  setCreateError(null)
-                  setCreateSuccess(false)
                   setTableRows([])
                   setNewTaskInputs({})
                 }}
@@ -365,31 +343,6 @@ export function ReportsPage() {
             </header>
 
             <div className="modal-form" style={{ padding: '1.5rem' }}>
-              {createSuccess && (
-                <div style={{
-                  padding: '1rem',
-                  background: '#dfd',
-                  border: '1px solid #9c9',
-                  borderRadius: '0.5rem',
-                  marginBottom: '1rem',
-                  color: '#363'
-                }}>
-                  ✓ Daily work update created successfully!
-                </div>
-              )}
-
-              {createError && (
-                <div style={{
-                  padding: '1rem',
-                  background: '#fee',
-                  border: '1px solid #fcc',
-                  borderRadius: '0.5rem',
-                  marginBottom: '1rem',
-                  color: '#c33'
-                }}>
-                  <strong>Error:</strong> {createError}
-                </div>
-              )}
 
               <label>
                 <span>Date</span>
@@ -397,7 +350,6 @@ export function ReportsPage() {
                   type="date"
                   value={updateDate}
                   onChange={(e) => setUpdateDate(e.target.value)}
-                  disabled={isCreating}
                   style={{
                     padding: '0.5rem',
                     borderRadius: '0.375rem',
@@ -417,7 +369,7 @@ export function ReportsPage() {
                     type="button"
                     className="ghost-button"
                     onClick={handleAddRow}
-                    disabled={isCreating || departmentMembers.length === 0 || tableRows.length >= departmentMembers.length}
+                    disabled={departmentMembers.length === 0 || tableRows.length >= departmentMembers.length}
                     style={{ fontSize: '0.875rem' }}
                   >
                     + Add Row
@@ -492,7 +444,6 @@ export function ReportsPage() {
                                   ))
                                 }
                               }}
-                              disabled={isCreating}
                               style={{
                                 padding: '0.5rem',
                                 borderRadius: '0.375rem',
@@ -527,7 +478,6 @@ export function ReportsPage() {
                                     type="text"
                                     value={task}
                                     onChange={(e) => handleUpdateTask(row.id, taskIndex, e.target.value)}
-                                    disabled={isCreating}
                                     style={{
                                       flex: 1,
                                       padding: '0.375rem',
@@ -539,7 +489,6 @@ export function ReportsPage() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveTask(row.id, taskIndex)}
-                                    disabled={isCreating}
                                     style={{
                                       background: 'none',
                                       border: 'none',
@@ -567,7 +516,6 @@ export function ReportsPage() {
                                     }
                                   }}
                                   placeholder="Enter task..."
-                                  disabled={isCreating}
                                   style={{
                                     flex: 1,
                                     padding: '0.5rem',
@@ -584,7 +532,7 @@ export function ReportsPage() {
                                       setNewTaskInputs({ ...newTaskInputs, [row.id]: '' })
                                     }
                                   }}
-                                  disabled={isCreating || !newTaskInputs[row.id]?.trim()}
+                                  disabled={!newTaskInputs[row.id]?.trim()}
                                   className="ghost-button"
                                   style={{
                                     fontSize: '0.75rem',
@@ -606,7 +554,6 @@ export function ReportsPage() {
                                 delete newInputs[row.id]
                                 setNewTaskInputs(newInputs)
                               }}
-                              disabled={isCreating}
                               className="ghost-button"
                               style={{
                                 fontSize: '0.75rem',
@@ -632,26 +579,19 @@ export function ReportsPage() {
                   className="ghost-button"
                   onClick={() => {
                     setIsCreateUpdateOpen(false)
-                    setCreateError(null)
-                    setCreateSuccess(false)
                     setTableRows([])
                     setNewTaskInputs({})
                   }}
-                  disabled={isCreating}
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="button"
                   className="primary-button"
-                  onClick={handleCreateDailyUpdate}
-                  disabled={
-                    isCreating ||
-                    !firestore ||
-                    tableRows.filter((row) => row.tasks.length > 0).length === 0
-                  }
+                  onClick={handlePrintDailyUpdate}
+                  disabled={tableRows.filter((row) => row.tasks.length > 0).length === 0}
                 >
-                  {isCreating ? 'Creating...' : 'Create Update'}
+                  📄 Download CSV / Print
                 </button>
               </footer>
             </div>
