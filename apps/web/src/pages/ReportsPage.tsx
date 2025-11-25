@@ -181,16 +181,13 @@ export function ReportsPage() {
   }
 
   // Export daily work update table to CSV
-  const handlePrintDailyUpdate = (e?: React.MouseEvent) => {
-    e?.preventDefault()
-    e?.stopPropagation()
-    
+  const handlePrintDailyUpdate = () => {
     try {
-      console.log('📥 Starting CSV export...', { tableRows, updateDate })
+      console.log('🔵 CSV Export Started', { tableRowsCount: tableRows.length, updateDate })
       
       // Validate that at least one row with at least one task exists
-      const rowsWithTasks = tableRows.filter((row) => row.tasks.length > 0)
-      console.log('✅ Rows with tasks:', rowsWithTasks.length)
+      const rowsWithTasks = tableRows.filter((row) => row.tasks && row.tasks.length > 0)
+      console.log('🔵 Rows with tasks:', rowsWithTasks.length)
       
       if (rowsWithTasks.length === 0) {
         alert('Please add at least one member with at least one task before downloading.')
@@ -200,6 +197,8 @@ export function ReportsPage() {
       // Format date for filename
       const dateStr = updateDate ? updateDate : new Date().toISOString().split('T')[0]
       const departmentName = userProfile?.department || 'Department'
+      
+      console.log('🔵 Generating CSV for:', { dateStr, departmentName })
       
       // Create CSV rows - one row per task (Member, Task format)
       const csvRows: string[][] = []
@@ -213,14 +212,14 @@ export function ReportsPage() {
       
       // Add data rows - one row per task, with member name on each row for better readability
       rowsWithTasks.forEach((row) => {
-        if (row.tasks.length === 0) return
+        if (!row.tasks || row.tasks.length === 0) return
         
         // Add each task with member name for better print readability
         row.tasks.forEach((task) => {
-          if (task && task.trim()) {
+          if (task && typeof task === 'string' && task.trim()) {
             csvRows.push([
               row.memberName || '',
-              task.trim() // Quotes will be escaped in CSV conversion
+              task.trim()
             ])
           }
         })
@@ -229,58 +228,48 @@ export function ReportsPage() {
         csvRows.push(['', ''])
       })
 
-      // Convert to CSV string
-      const csvContent = csvRows
-        .map((row) => {
-          // Handle empty rows
-          if (!row || row.length === 0) {
-            return ''
-          }
-          // Ensure we have at least 2 columns
-          const member = (row[0] || '').replace(/"/g, '""')
-          const task = (row[1] || '').replace(/"/g, '""')
-          return `"${member}","${task}"`
-        })
-        .join('\n')
+      console.log('🔵 CSV rows prepared:', csvRows.length)
 
-      console.log('📄 CSV Content generated:', csvContent.substring(0, 200) + '...')
+      // Convert to CSV string - format all rows
+      const csvLines: string[] = []
+      
+      csvRows.forEach((row) => {
+        if (!row || row.length < 2) {
+          csvLines.push('"",""')
+        } else {
+          const member = String(row[0] || '').replace(/"/g, '""')
+          const task = String(row[1] || '').replace(/"/g, '""')
+          csvLines.push(`"${member}","${task}"`)
+        }
+      })
+      
+      const csvContent = csvLines.join('\n')
 
-      // Add BOM for Excel compatibility
-      const BOM = '\uFEFF'
-      const csvWithBOM = BOM + csvContent
+      console.log('🔵 CSV content generated, length:', csvContent.length, 'rows:', csvLines.length)
 
-      // Create and download file
-      const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
+      if (!csvContent || csvContent.trim().length === 0) {
+        alert('No data to export. Please add tasks to the table.')
+        return
+      }
+
+      // Create and download file - EXACT same pattern as exportTasksToCSV
       const sanitizedDeptName = departmentName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
       const filename = `daily-work-update-${sanitizedDeptName}-${dateStr}.csv`
       
-      console.log('📁 Creating download:', { filename, blobSize: blob.size })
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
-      
-      link.href = url
-      link.download = filename
-      link.style.display = 'none'
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', filename)
+      link.style.visibility = 'hidden'
       document.body.appendChild(link)
-      
-      // Trigger download immediately (must be in same event handler)
       link.click()
-      console.log('✅ Download triggered')
-      
-      // Cleanup after a short delay
-      setTimeout(() => {
-        if (link.parentNode) {
-          link.parentNode.removeChild(link)
-        }
-        window.URL.revokeObjectURL(url)
-        console.log('✅ Cleanup complete')
-      }, 200)
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
       
     } catch (error: any) {
-      console.error('❌ Error generating CSV:', error)
-      alert(`Failed to generate CSV file: ${error?.message || 'Unknown error'}. Please check the browser console for details.`)
+      console.error('❌ CSV Export Error:', error)
+      alert(`Failed to download CSV: ${error?.message || 'Unknown error'}. Check console for details.`)
     }
   }
 
@@ -368,7 +357,7 @@ export function ReportsPage() {
       {/* Daily Work Update Modal */}
       {isCreateUpdateOpen && (
         <div className="modal-backdrop" role="presentation">
-          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: '95vw', width: '1200px', maxHeight: '95vh', overflow: 'auto' }}>
+          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95vw', width: '1200px', maxHeight: '95vh', overflow: 'auto' }}>
             <header className="modal-header">
               <div>
                 <h2>Daily Work Update Report</h2>
@@ -636,9 +625,10 @@ export function ReportsPage() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    handlePrintDailyUpdate(e)
+                    console.log('🖱️ Button clicked!', { tableRows, rowsWithTasks: tableRows.filter((row) => row.tasks && row.tasks.length > 0).length })
+                    handlePrintDailyUpdate()
                   }}
-                  disabled={tableRows.filter((row) => row.tasks.length > 0).length === 0}
+                  disabled={tableRows.filter((row) => row.tasks && row.tasks.length > 0).length === 0}
                 >
                   📄 Download CSV / Print
                 </button>
