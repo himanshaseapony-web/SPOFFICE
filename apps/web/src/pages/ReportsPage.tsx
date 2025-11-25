@@ -40,16 +40,17 @@ export function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [isCreateUpdateOpen, setIsCreateUpdateOpen] = useState(false)
   const [updateDate, setUpdateDate] = useState(new Date().toISOString().split('T')[0])
-  const [selectedMembers, setSelectedMembers] = useState<Array<{ 
-    userId: string
-    userName: string
-    taskIds: string[]
-    manualTasks: string[] // Array of manually entered task titles
+  // Table rows: each row has a member and their tasks
+  const [tableRows, setTableRows] = useState<Array<{
+    id: string // unique ID for the row
+    memberId: string
+    memberName: string
+    tasks: string[] // Array of task descriptions
   }>>([])
-  const [manualTaskInputs, setManualTaskInputs] = useState<Record<string, string>>({}) // userId -> manual task input value
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccess, setCreateSuccess] = useState(false)
+  const [newTaskInputs, setNewTaskInputs] = useState<Record<string, string>>({}) // rowId -> new task input
   
   const completedTasks = tasks.filter((task) => task.status === 'Completed')
   const reviewQueue = tasks.filter((task) => task.status === 'Review')
@@ -109,104 +110,76 @@ export function ReportsPage() {
     )
   }, [allUserProfiles, userProfile, user])
 
-  // Get tasks completed on a specific date by a specific user
-  const getTasksCompletedOnDate = (userId: string, dateString: string): Task[] => {
-    if (!dateString) return []
-    
-    const selectedDate = new Date(dateString)
-    selectedDate.setHours(0, 0, 0, 0)
-    const nextDay = new Date(selectedDate)
-    nextDay.setDate(nextDay.getDate() + 1)
-
-    return tasks.filter((task) => {
-      if (task.assigneeId !== userId || task.status !== 'Completed') {
-        return false
-      }
-      if (!task.completedAt) return false
-      
-      const completedDate = new Date(task.completedAt)
-      return completedDate >= selectedDate && completedDate < nextDay
-    })
-  }
-
-
-  const handleAddMember = () => {
+  // Add a new row to the table
+  const handleAddRow = () => {
     if (departmentMembers.length === 0) return
     
     // Find first member not already added
     const availableMember = departmentMembers.find(
-      (member) => !selectedMembers.some((sm) => sm.userId === member.id)
+      (member) => !tableRows.some((row) => row.memberId === member.id)
     )
     
     if (availableMember) {
-      setSelectedMembers([
-        ...selectedMembers,
-        {
-          userId: availableMember.id,
-          userName: availableMember.displayName,
-          taskIds: [],
-          manualTasks: [],
-        },
-      ])
-      setManualTaskInputs({
-        ...manualTaskInputs,
-        [availableMember.id]: '',
-      })
+      const newRow = {
+        id: `row-${Date.now()}-${Math.random()}`,
+        memberId: availableMember.id,
+        memberName: availableMember.displayName,
+        tasks: [],
+      }
+      setTableRows([...tableRows, newRow])
     }
   }
 
-  const handleRemoveMember = (userId: string) => {
-    setSelectedMembers(selectedMembers.filter((m) => m.userId !== userId))
-    const newInputs = { ...manualTaskInputs }
-    delete newInputs[userId]
-    setManualTaskInputs(newInputs)
+  // Remove a row from the table
+  const handleRemoveRow = (rowId: string) => {
+    setTableRows(tableRows.filter((row) => row.id !== rowId))
   }
 
-  const handleToggleTask = (memberUserId: string, taskId: string) => {
-    setSelectedMembers(
-      selectedMembers.map((member) => {
-        if (member.userId === memberUserId) {
-          const taskIds = member.taskIds.includes(taskId)
-            ? member.taskIds.filter((id) => id !== taskId)
-            : [...member.taskIds, taskId]
-          return { ...member, taskIds }
+  // Add a task to a row
+  const handleAddTask = (rowId: string, taskText: string) => {
+    if (!taskText.trim()) return
+    
+    setTableRows(
+      tableRows.map((row) => {
+        if (row.id === rowId) {
+          return {
+            ...row,
+            tasks: [...row.tasks, taskText.trim()],
+          }
         }
-        return member
+        return row
       })
     )
   }
 
-  const handleAddManualTask = (memberUserId: string) => {
-    const taskTitle = manualTaskInputs[memberUserId]?.trim()
-    if (!taskTitle) return
-
-    setSelectedMembers(
-      selectedMembers.map((member) => {
-        if (member.userId === memberUserId) {
+  // Remove a task from a row
+  const handleRemoveTask = (rowId: string, taskIndex: number) => {
+    setTableRows(
+      tableRows.map((row) => {
+        if (row.id === rowId) {
           return {
-            ...member,
-            manualTasks: [...member.manualTasks, taskTitle],
+            ...row,
+            tasks: row.tasks.filter((_, index) => index !== taskIndex),
           }
         }
-        return member
+        return row
       })
     )
-    setManualTaskInputs({
-      ...manualTaskInputs,
-      [memberUserId]: '',
-    })
   }
 
-  const handleRemoveManualTask = (memberUserId: string, taskIndex: number) => {
-    setSelectedMembers(
-      selectedMembers.map((member) => {
-        if (member.userId === memberUserId) {
+  // Update task text in a row
+  const handleUpdateTask = (rowId: string, taskIndex: number, newText: string) => {
+    setTableRows(
+      tableRows.map((row) => {
+        if (row.id === rowId) {
+          const updatedTasks = [...row.tasks]
+          updatedTasks[taskIndex] = newText
           return {
-            ...member,
-            manualTasks: member.manualTasks.filter((_, index) => index !== taskIndex),
+            ...row,
+            tasks: updatedTasks,
           }
         }
-        return member
+        return row
       })
     )
   }
@@ -224,12 +197,10 @@ export function ReportsPage() {
       return
     }
 
-    // Validate that at least one member with at least one task (system or manual) is selected
-    const hasValidData = selectedMembers.some(
-      (member) => member.taskIds.length > 0 || member.manualTasks.length > 0
-    )
+    // Validate that at least one row with at least one task exists
+    const hasValidData = tableRows.some((row) => row.tasks.length > 0)
     if (!hasValidData) {
-      setCreateError('Please select at least one member with at least one task (from system or manually entered).')
+      setCreateError('Please add at least one member with at least one task.')
       return
     }
 
@@ -238,42 +209,17 @@ export function ReportsPage() {
     setCreateSuccess(false)
 
     try {
-      // Filter members to only include those with tasks (system or manual)
-      const membersWithTasks = selectedMembers
-        .filter((member) => member.taskIds.length > 0 || member.manualTasks.length > 0)
-        .map((member) => {
-          // Get system tasks
-          const systemTasks = member.taskIds
-            .map((taskId) => {
-              const task = tasks.find((t) => t.id === taskId)
-              return task
-                ? { taskId: task.id, taskTitle: task.title, isManual: false }
-                : null
-            })
-            .filter((t): t is { taskId: string; taskTitle: string; isManual: boolean } => t !== null)
-
-          // Get manual tasks
-          const manualTasks = member.manualTasks.map((taskTitle) => ({
+      // Convert table rows to members with tasks format
+      const membersWithTasks = tableRows
+        .filter((row) => row.tasks.length > 0)
+        .map((row) => ({
+          userId: row.memberId,
+          userName: row.memberName,
+          tasksCompleted: row.tasks.map((taskTitle) => ({
             taskTitle,
-            isManual: true,
-          }))
-
-          // Combine both types
-          const allTasks = [
-            ...systemTasks,
-            ...manualTasks,
-          ] as Array<{
-            taskId?: string
-            taskTitle: string
-            isManual?: boolean
-          }>
-
-          return {
-            userId: member.userId,
-            userName: member.userName,
-            tasksCompleted: allTasks,
-          }
-        })
+            isManual: true, // All tasks are manual entries for printing
+          })),
+        }))
 
       const updateData = {
         date: updateDate,
@@ -287,8 +233,7 @@ export function ReportsPage() {
       await addDoc(collection(firestore, 'dailyWorkUpdates'), updateData)
 
       setCreateSuccess(true)
-      setSelectedMembers([])
-      setManualTaskInputs({})
+      setTableRows([])
       setUpdateDate(new Date().toISOString().split('T')[0])
       
       // Close modal after 2 seconds
@@ -402,7 +347,7 @@ export function ReportsPage() {
             <header className="modal-header">
               <div>
                 <h2>Create Daily Work Update</h2>
-                <p>Document what your department members accomplished today.</p>
+                <p>Create a printable daily work report for your department members.</p>
               </div>
               <button
                 type="button"
@@ -411,8 +356,8 @@ export function ReportsPage() {
                   setIsCreateUpdateOpen(false)
                   setCreateError(null)
                   setCreateSuccess(false)
-                  setSelectedMembers([])
-                  setManualTaskInputs({})
+                  setTableRows([])
+                  setNewTaskInputs({})
                 }}
               >
                 Close
@@ -459,25 +404,27 @@ export function ReportsPage() {
                     border: '1px solid var(--border-soft)',
                     fontSize: '0.9rem',
                     width: '100%',
+                    marginBottom: '1.5rem',
                   }}
                 />
               </label>
 
-              <div style={{ marginTop: '1.5rem' }}>
+              {/* Table for Daily Work Update */}
+              <div style={{ marginTop: '1.5rem', overflowX: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '1rem' }}>Department Members</span>
+                  <span style={{ fontWeight: 600, fontSize: '1rem' }}>Daily Work Report Table</span>
                   <button
                     type="button"
                     className="ghost-button"
-                    onClick={handleAddMember}
-                    disabled={isCreating || departmentMembers.length === 0 || selectedMembers.length >= departmentMembers.length}
+                    onClick={handleAddRow}
+                    disabled={isCreating || departmentMembers.length === 0 || tableRows.length >= departmentMembers.length}
                     style={{ fontSize: '0.875rem' }}
                   >
-                    + Add Member
+                    + Add Row
                   </button>
                 </div>
 
-                {selectedMembers.length === 0 ? (
+                {tableRows.length === 0 ? (
                   <div style={{
                     padding: '2rem',
                     textAlign: 'center',
@@ -485,157 +432,194 @@ export function ReportsPage() {
                     borderRadius: '0.5rem',
                     color: 'var(--text-muted)'
                   }}>
-                    No members added yet. Click "Add Member" to start.
+                    No rows added yet. Click "+ Add Row" to add a member and their tasks.
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {selectedMembers.map((member) => {
-                      // Get tasks completed on the selected date
-                      const tasksForDate = getTasksCompletedOnDate(member.userId, updateDate)
-
-                      return (
-                        <div
-                          key={member.userId}
-                          style={{
-                            padding: '1rem',
-                            border: '1px solid var(--border-soft)',
-                            borderRadius: '0.5rem',
-                            background: 'var(--surface-elevated)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                            <strong>{member.userName}</strong>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              onClick={() => handleRemoveMember(member.userId)}
+                  <table style={{ 
+                    width: '100%', 
+                    borderCollapse: 'collapse',
+                    background: 'var(--surface-default)',
+                    borderRadius: '0.5rem',
+                    overflow: 'hidden',
+                  }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-elevated)' }}>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          borderBottom: '2px solid var(--border-soft)',
+                          fontWeight: 600,
+                          fontSize: '0.875rem',
+                        }}>
+                          Member
+                        </th>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'left', 
+                          borderBottom: '2px solid var(--border-soft)',
+                          fontWeight: 600,
+                          fontSize: '0.875rem',
+                        }}>
+                          Tasks
+                        </th>
+                        <th style={{ 
+                          padding: '0.75rem', 
+                          textAlign: 'center', 
+                          borderBottom: '2px solid var(--border-soft)',
+                          fontWeight: 600,
+                          fontSize: '0.875rem',
+                          width: '80px',
+                        }}>
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map((row) => (
+                        <tr key={row.id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                          <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
+                            <select
+                              value={row.memberId}
+                              onChange={(e) => {
+                                const selectedMember = departmentMembers.find(m => m.id === e.target.value)
+                                if (selectedMember) {
+                                  setTableRows(tableRows.map(r => 
+                                    r.id === row.id 
+                                      ? { ...r, memberId: selectedMember.id, memberName: selectedMember.displayName }
+                                      : r
+                                  ))
+                                }
+                              }}
                               disabled={isCreating}
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', color: '#dc2626' }}
+                              style={{
+                                padding: '0.5rem',
+                                borderRadius: '0.375rem',
+                                border: '1px solid var(--border-soft)',
+                                fontSize: '0.875rem',
+                                width: '100%',
+                                background: 'var(--surface-default)',
+                              }}
                             >
-                              Remove
-                            </button>
-                          </div>
-
-                          {/* System Tasks Section */}
-                          {tasksForDate.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-                              <span style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>
-                                Select completed tasks from system:
-                              </span>
-                              {tasksForDate.map((task) => (
-                                <label
-                                  key={task.id}
+                              {departmentMembers.map((member) => (
+                                <option key={member.id} value={member.id}>
+                                  {member.displayName}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {row.tasks.map((task, taskIndex) => (
+                                <div
+                                  key={taskIndex}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '0.5rem',
                                     padding: '0.5rem',
+                                    background: 'var(--surface-elevated)',
                                     borderRadius: '0.25rem',
-                                    cursor: 'pointer',
-                                    background: member.taskIds.includes(task.id) ? 'var(--accent-soft)' : 'transparent',
                                   }}
                                 >
                                   <input
-                                    type="checkbox"
-                                    checked={member.taskIds.includes(task.id)}
-                                    onChange={() => handleToggleTask(member.userId, task.id)}
+                                    type="text"
+                                    value={task}
+                                    onChange={(e) => handleUpdateTask(row.id, taskIndex, e.target.value)}
                                     disabled={isCreating}
-                                  />
-                                  <span style={{ fontSize: '0.875rem' }}>{task.title}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Manual Tasks Section */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.25rem' }}>
-                              Or enter tasks manually:
-                            </span>
-                            
-                            {/* Display existing manual tasks */}
-                            {member.manualTasks.length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                {member.manualTasks.map((taskTitle, index) => (
-                                  <div
-                                    key={index}
                                     style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '0.5rem',
+                                      flex: 1,
+                                      padding: '0.375rem',
                                       borderRadius: '0.25rem',
-                                      background: 'var(--accent-soft)',
+                                      border: '1px solid var(--border-soft)',
+                                      fontSize: '0.875rem',
                                     }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTask(row.id, taskIndex)}
+                                    disabled={isCreating}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#dc2626',
+                                      cursor: 'pointer',
+                                      padding: '0.25rem 0.5rem',
+                                      fontSize: '1rem',
+                                    }}
+                                    title="Remove task"
                                   >
-                                    <span style={{ fontSize: '0.875rem', flex: 1 }}>{taskTitle}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveManualTask(member.userId, index)}
-                                      disabled={isCreating}
-                                      style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        color: '#dc2626',
-                                        cursor: 'pointer',
-                                        padding: '0.25rem 0.5rem',
-                                        fontSize: '0.75rem',
-                                      }}
-                                      title="Remove task"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                ))}
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                  type="text"
+                                  value={newTaskInputs[row.id] || ''}
+                                  onChange={(e) => setNewTaskInputs({ ...newTaskInputs, [row.id]: e.target.value })}
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && newTaskInputs[row.id]?.trim()) {
+                                      e.preventDefault()
+                                      handleAddTask(row.id, newTaskInputs[row.id])
+                                      setNewTaskInputs({ ...newTaskInputs, [row.id]: '' })
+                                    }
+                                  }}
+                                  placeholder="Enter task..."
+                                  disabled={isCreating}
+                                  style={{
+                                    flex: 1,
+                                    padding: '0.5rem',
+                                    borderRadius: '0.375rem',
+                                    border: '1px solid var(--border-soft)',
+                                    fontSize: '0.875rem',
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (newTaskInputs[row.id]?.trim()) {
+                                      handleAddTask(row.id, newTaskInputs[row.id])
+                                      setNewTaskInputs({ ...newTaskInputs, [row.id]: '' })
+                                    }
+                                  }}
+                                  disabled={isCreating || !newTaskInputs[row.id]?.trim()}
+                                  className="ghost-button"
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    padding: '0.5rem 0.75rem',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  Add
+                                </button>
                               </div>
-                            )}
-
-                            {/* Input for new manual task */}
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <input
-                                type="text"
-                                value={manualTaskInputs[member.userId] || ''}
-                                onChange={(e) =>
-                                  setManualTaskInputs({
-                                    ...manualTaskInputs,
-                                    [member.userId]: e.target.value,
-                                  })
-                                }
-                                onKeyPress={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    handleAddManualTask(member.userId)
-                                  }
-                                }}
-                                placeholder="Enter task description..."
-                                disabled={isCreating}
-                                style={{
-                                  flex: 1,
-                                  padding: '0.5rem',
-                                  borderRadius: '0.375rem',
-                                  border: '1px solid var(--border-soft)',
-                                  fontSize: '0.875rem',
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleAddManualTask(member.userId)}
-                                disabled={isCreating || !manualTaskInputs[member.userId]?.trim()}
-                                className="ghost-button"
-                                style={{
-                                  fontSize: '0.875rem',
-                                  padding: '0.5rem 1rem',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                Add
-                              </button>
                             </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                          </td>
+                          <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'top' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleRemoveRow(row.id)
+                                const newInputs = { ...newTaskInputs }
+                                delete newInputs[row.id]
+                                setNewTaskInputs(newInputs)
+                              }}
+                              disabled={isCreating}
+                              className="ghost-button"
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.5rem',
+                                color: '#dc2626',
+                              }}
+                              title="Remove row"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
 
@@ -647,7 +631,8 @@ export function ReportsPage() {
                     setIsCreateUpdateOpen(false)
                     setCreateError(null)
                     setCreateSuccess(false)
-                    setSelectedMembers([])
+                    setTableRows([])
+                    setNewTaskInputs({})
                   }}
                   disabled={isCreating}
                 >
@@ -660,7 +645,7 @@ export function ReportsPage() {
                   disabled={
                     isCreating ||
                     !firestore ||
-                    selectedMembers.filter((m) => m.taskIds.length > 0 || m.manualTasks.length > 0).length === 0
+                    tableRows.filter((row) => row.tasks.length > 0).length === 0
                   }
                 >
                   {isCreating ? 'Creating...' : 'Create Update'}
