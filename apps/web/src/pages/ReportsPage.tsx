@@ -343,7 +343,7 @@ export function ReportsPage() {
       {/* Daily Work Update Modal */}
       {isCreateUpdateOpen && (
         <div className="modal-backdrop" role="presentation">
-          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: '800px', maxHeight: '90vh', overflow: 'auto' }}>
+          <div className="modal" role="dialog" aria-modal="true" style={{ maxWidth: '95vw', width: '1200px', maxHeight: '95vh', overflow: 'auto' }}>
             <header className="modal-header">
               <div>
                 <h2>Create Daily Work Update</h2>
@@ -410,7 +410,7 @@ export function ReportsPage() {
               </label>
 
               {/* Table for Daily Work Update */}
-              <div style={{ marginTop: '1.5rem', overflowX: 'auto' }}>
+              <div style={{ marginTop: '1.5rem', overflowX: 'auto', minHeight: '400px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <span style={{ fontWeight: 600, fontSize: '1rem' }}>Daily Work Report Table</span>
                   <button
@@ -435,40 +435,42 @@ export function ReportsPage() {
                     No rows added yet. Click "+ Add Row" to add a member and their tasks.
                   </div>
                 ) : (
-                  <table style={{ 
-                    width: '100%', 
-                    borderCollapse: 'collapse',
-                    background: 'var(--surface-default)',
-                    borderRadius: '0.5rem',
-                    overflow: 'hidden',
-                  }}>
+                  <div style={{ overflowX: 'auto', border: '1px solid var(--border-soft)', borderRadius: '0.5rem' }}>
+                    <table style={{ 
+                      width: '100%', 
+                      minWidth: '800px',
+                      borderCollapse: 'collapse',
+                      background: 'var(--surface-default)',
+                    }}>
                     <thead>
                       <tr style={{ background: 'var(--surface-elevated)' }}>
                         <th style={{ 
-                          padding: '0.75rem', 
+                          padding: '1rem', 
                           textAlign: 'left', 
                           borderBottom: '2px solid var(--border-soft)',
                           fontWeight: 600,
-                          fontSize: '0.875rem',
+                          fontSize: '0.9rem',
+                          minWidth: '200px',
                         }}>
                           Member
                         </th>
                         <th style={{ 
-                          padding: '0.75rem', 
+                          padding: '1rem', 
                           textAlign: 'left', 
                           borderBottom: '2px solid var(--border-soft)',
                           fontWeight: 600,
-                          fontSize: '0.875rem',
+                          fontSize: '0.9rem',
+                          minWidth: '500px',
                         }}>
                           Tasks
                         </th>
                         <th style={{ 
-                          padding: '0.75rem', 
+                          padding: '1rem', 
                           textAlign: 'center', 
                           borderBottom: '2px solid var(--border-soft)',
                           fontWeight: 600,
-                          fontSize: '0.875rem',
-                          width: '80px',
+                          fontSize: '0.9rem',
+                          width: '120px',
                         }}>
                           Actions
                         </th>
@@ -477,7 +479,7 @@ export function ReportsPage() {
                     <tbody>
                       {tableRows.map((row) => (
                         <tr key={row.id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                          <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
+                          <td style={{ padding: '1rem', verticalAlign: 'top', minWidth: '200px' }}>
                             <select
                               value={row.memberId}
                               onChange={(e) => {
@@ -507,8 +509,8 @@ export function ReportsPage() {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <td style={{ padding: '1rem', verticalAlign: 'top', minWidth: '500px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                               {row.tasks.map((task, taskIndex) => (
                                 <div
                                   key={taskIndex}
@@ -595,7 +597,7 @@ export function ReportsPage() {
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'top' }}>
+                          <td style={{ padding: '1rem', textAlign: 'center', verticalAlign: 'top', width: '120px' }}>
                             <button
                               type="button"
                               onClick={() => {
@@ -620,6 +622,7 @@ export function ReportsPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
 
