@@ -81,6 +81,24 @@ export type TaskFilters = {
   assignedToMe?: boolean
 }
 
+export type DailyWorkUpdate = {
+  id: string
+  date: string // ISO date string (YYYY-MM-DD)
+  department: string
+  createdBy: string // User ID of the department head
+  createdByName: string // Display name of the department head
+  createdAt: string // ISO timestamp
+  members: Array<{
+    userId: string
+    userName: string
+    tasksCompleted: Array<{
+      taskId?: string // Optional - present for tasks from system, absent for manual tasks
+      taskTitle: string
+      isManual?: boolean // Flag to indicate if this is a manually entered task
+    }>
+  }>
+}
+
 type AppDataContextValue = {
   departments: Department[]
   tasks: Task[]

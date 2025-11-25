@@ -156,6 +156,57 @@ service cloud.firestore {
       );
     }
     
+    // Daily Work Updates - created by department heads
+    match /dailyWorkUpdates/{updateId} {
+      // Allow read for authenticated users (department heads can read their department's updates, Admins/Managers can read all)
+      allow read: if isAuthenticated();
+      
+      // Allow create only by department heads for their own department
+      allow create: if isAuthenticated() &&
+        getUserProfileExists() &&
+        getUserProfileOrNull() != null &&
+        getUserProfileOrNull().isDepartmentHead == true &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.department == getUserProfileOrNull().department &&
+        request.resource.data.keys().hasAll(['date', 'department', 'createdBy', 'createdByName', 'createdAt', 'members']) &&
+        request.resource.data.date is string &&
+        request.resource.data.date.size() == 10 && // YYYY-MM-DD format
+        request.resource.data.department is string &&
+        request.resource.data.department.size() > 0 &&
+        request.resource.data.createdBy is string &&
+        request.resource.data.createdByName is string &&
+        request.resource.data.createdByName.size() > 0 &&
+        request.resource.data.members is list &&
+        request.resource.data.members.size() > 0 &&
+        request.resource.data.members.size() <= 50;
+        // Note: Detailed validation of members array structure is handled client-side
+        // Firestore rules have limitations on validating nested array structures
+      
+      // Allow update only by the creator or Admin/Manager (with same validation as create)
+      allow update: if isAuthenticated() && (
+        (isOwner(resource.data.createdBy) || hasRole(['Admin', 'Manager'])) &&
+        getUserProfileExists() &&
+        getUserProfileOrNull() != null &&
+        request.resource.data.keys().hasAll(['date', 'department', 'createdBy', 'createdByName', 'createdAt', 'members']) &&
+        request.resource.data.date is string &&
+        request.resource.data.date.size() == 10 &&
+        request.resource.data.department is string &&
+        request.resource.data.department.size() > 0 &&
+        request.resource.data.createdBy is string &&
+        request.resource.data.createdByName is string &&
+        request.resource.data.createdByName.size() > 0 &&
+        request.resource.data.members is list &&
+        request.resource.data.members.size() > 0 &&
+        request.resource.data.members.size() <= 50
+      );
+      
+      // Allow delete only by the creator or Admin/Manager
+      allow delete: if isAuthenticated() && (
+        isOwner(resource.data.createdBy) ||
+        hasRole(['Admin', 'Manager'])
+      );
+    }
+    
     // Default: deny all other access
     match /{document=**} {
       allow read, write: if false;

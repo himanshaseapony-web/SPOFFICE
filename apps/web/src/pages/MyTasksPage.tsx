@@ -107,10 +107,12 @@ function CollapsibleSummary({ summary }: { summary: string }) {
 }
 
 export function MyTasksPage() {
-  const { tasks, allUserProfiles } = useAppData()
+  const { tasks, allUserProfiles, updateTask, userProfile } = useAppData()
   const { user } = useAuth()
   const { openFilter } = useLayoutActions()
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [updating, setUpdating] = useState<string | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
 
   // Filter tasks assigned to the current user
   const myTasks = useMemo(() => {
@@ -131,6 +133,69 @@ export function MyTasksPage() {
     () => myTasks.find((task) => task.id === selectedTaskId) ?? myTasks[0],
     [myTasks, selectedTaskId],
   )
+
+  // Check if user can edit a specific task
+  const canEditTask = (task: Task | undefined): boolean => {
+    if (!user || !userProfile || !task) return false
+    
+    const role = userProfile.role
+    const isDepartmentHead = userProfile.isDepartmentHead ?? false
+    
+    // Admins can edit all tasks
+    if (role === 'Admin') return true
+    
+    // Managers can edit all tasks
+    if (role === 'Manager') return true
+    
+    // Department heads can edit all tasks in their department
+    if (isDepartmentHead && task.department === userProfile.department) return true
+    
+    // Users can edit tasks assigned to them (including when they create and assign to themselves)
+    if (task.assigneeId === user.uid) return true
+    
+    // Users can also edit tasks they created (even if not assigned to themselves)
+    if (task.createdBy === user.uid) return true
+    
+    // Specialists can edit tasks assigned to them
+    if (role === 'Specialist' && task.assigneeId === user.uid) return true
+    
+    return false
+  }
+
+  const canEdit = canEditTask(selectedTask)
+
+  const handleStatusChange = async (taskId: string, newStatus: Task['status']) => {
+    const task = myTasks.find((t) => t.id === taskId)
+    if (!canEditTask(task)) return
+    setUpdating(taskId)
+    setUpdateError(null)
+    try {
+      const updates: Partial<Omit<Task, 'id'>> = { status: newStatus }
+      
+      // Set completedAt timestamp when task is marked as Completed
+      if (newStatus === 'Completed' && task?.status !== 'Completed') {
+        updates.completedAt = new Date().toISOString()
+      }
+      
+      await updateTask(taskId, updates)
+    } catch (error: any) {
+      console.error('Failed to update task status', error)
+      let errorMessage = 'Failed to update task status. Please try again.'
+      
+      // Provide more specific error messages
+      if (error?.code === 'permission-denied') {
+        errorMessage = 'Permission denied. You may not have permission to update this task. Please check your role and task assignment.'
+      } else if (error?.code === 'unavailable') {
+        errorMessage = 'Firestore is unavailable. Please check your internet connection and try again.'
+      } else if (error?.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      setUpdateError(errorMessage)
+    } finally {
+      setUpdating(null)
+    }
+  }
 
   return (
     <section className="panel panel-primary">
@@ -262,10 +327,54 @@ export function MyTasksPage() {
               {selectedTask && <CollapsibleSummary summary={selectedTask.summary} />}
             </section>
 
+            {updateError && (
+              <div style={{ 
+                padding: '0.75rem', 
+                background: '#fee', 
+                border: '1px solid #fcc', 
+                borderRadius: '0.5rem', 
+                margin: '0 0 1rem 0',
+                color: '#c33',
+                fontSize: '0.875rem'
+              }}>
+                {updateError}
+              </div>
+            )}
+
             <section className="detail-grid">
               <div>
                 <span className="section-label">Status</span>
-                <p>{selectedTask?.status}</p>
+                {canEdit && selectedTask ? (
+                  <select
+                    value={selectedTask.status}
+                    onChange={(e) =>
+                      handleStatusChange(
+                        selectedTask.id,
+                        e.target.value as Task['status'],
+                      )
+                    }
+                    disabled={updating === selectedTask.id}
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid var(--border-soft)',
+                      fontSize: '0.9rem',
+                      background: 'var(--surface-default)',
+                      color: 'var(--text-primary)',
+                      cursor: updating === selectedTask.id ? 'not-allowed' : 'pointer',
+                      opacity: updating === selectedTask.id ? 0.6 : 1,
+                      width: '100%',
+                      marginTop: '0.5rem',
+                    }}
+                  >
+                    <option value="Backlog">Backlog</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Review">Review</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                ) : (
+                  <p>{selectedTask?.status}</p>
+                )}
               </div>
               <div>
                 <span className="section-label">Priority</span>
