@@ -995,7 +995,7 @@ export function TaskBoard({ tasks, selectedId, onSelect, onFilter }: TaskBoardPr
                               color: 'var(--accent)', 
                               textDecoration: 'none',
                               wordBreak: 'break-all',
-                              flex: 1
+                              flex: 1,
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
                             onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
