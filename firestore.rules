@@ -165,7 +165,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         getUserProfileExists() &&
         hasRole(['Admin', 'Manager', 'DepartmentHead']) &&
-        request.resource.data.keys().hasAll(['month', 'year', 'deadline', 'taskDetails', 'assignedPerson', 'assignedPersonId', 'department', 'createdBy', 'createdByName', 'createdAt']) &&
+        request.resource.data.keys().hasAll(['month', 'year', 'deadline', 'taskDetails', 'assignees', 'createdBy', 'createdByName', 'createdAt']) &&
         request.resource.data.month is string &&
         request.resource.data.month.size() > 0 &&
         request.resource.data.year is int &&
@@ -174,9 +174,9 @@ service cloud.firestore {
         request.resource.data.deadline is string &&
         request.resource.data.taskDetails is string &&
         request.resource.data.taskDetails.size() > 0 &&
-        request.resource.data.assignedPerson is string &&
-        request.resource.data.assignedPersonId is string &&
-        request.resource.data.department is string &&
+        request.resource.data.assignees is list &&
+        request.resource.data.assignees.size() > 0 &&
+        request.resource.data.assignees.size() <= 50 &&
         request.resource.data.createdBy == request.auth.uid;
       
       // Allow update for Admin, Manager, and the creator
