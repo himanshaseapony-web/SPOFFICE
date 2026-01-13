@@ -6,6 +6,7 @@ import OverviewPage from './pages/OverviewPage'
 import TaskBoardPage from './pages/TaskBoardPage'
 import MyTasksPage from './pages/MyTasksPage'
 import CompanyChatPage from './pages/CompanyChatPage'
+import UpdateCalendarPage from './pages/UpdateCalendarPage'
 import InProgressTasksPage from './pages/InProgressTasksPage'
 import DepartmentsPage from './pages/DepartmentsPage'
 import ReportsPage from './pages/ReportsPage'
@@ -30,6 +31,7 @@ function App() {
             } 
           />
           <Route path="company-chat" element={<ProtectedRoute><CompanyChatPage /></ProtectedRoute>} />
+          <Route path="update-calendar" element={<ProtectedRoute><UpdateCalendarPage /></ProtectedRoute>} />
           <Route 
             path="in-progress" 
             element={
