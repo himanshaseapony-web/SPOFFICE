@@ -27,7 +27,7 @@ const MONTHS = [
 ]
 
 export function UpdateCalendarPage() {
-  const { departments, allUserProfiles, userProfile, firestore } = useAppData()
+  const { allUserProfiles, userProfile, firestore } = useAppData()
   const { user } = useAuth()
   const currentYear = new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState(currentYear)
@@ -38,7 +38,6 @@ export function UpdateCalendarPage() {
   const [error, setError] = useState<string | null>(null)
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
   const [selectedAssignees, setSelectedAssignees] = useState<Assignee[]>([])
-  const [assigneeSearch, setAssigneeSearch] = useState('')
 
   // Load calendar updates from Firestore
   useEffect(() => {
@@ -115,7 +114,6 @@ export function UpdateCalendarPage() {
   const handleOpenCreate = (month: string) => {
     setSelectedMonth(month)
     setSelectedAssignees([])
-    setAssigneeSearch('')
     setIsCreateOpen(true)
     setError(null)
   }
@@ -124,7 +122,6 @@ export function UpdateCalendarPage() {
     setIsCreateOpen(false)
     setSelectedMonth('')
     setSelectedAssignees([])
-    setAssigneeSearch('')
     setError(null)
   }
 
@@ -139,7 +136,6 @@ export function UpdateCalendarPage() {
         },
       ])
     }
-    setAssigneeSearch('')
   }
 
   const removeAssignee = (assigneeId: string) => {
