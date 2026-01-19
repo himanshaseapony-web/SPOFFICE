@@ -188,13 +188,17 @@ service cloud.firestore {
       // Allow update for Admin, Manager, and the creator
       // Can update deadline, departmentDeadlines, departmentStatuses, overallStatus, taskDetails, assignees, and updatedAt
       allow update: if isAuthenticated() && (
+        // Admin/Manager can update any allowed field
         hasRole(['Admin', 'Manager']) ||
+        // Task creator (owner) can update any allowed field including departmentStatuses
         isOwner(resource.data.createdBy) ||
-        // Allow specialists/department heads to update their department's status
+        // Allow specialists/department heads to update their department's status only
         (hasRole(['Specialist', 'DepartmentHead']) &&
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentStatuses', 'overallStatus', 'updatedAt']))
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentStatuses', 'overallStatus', 'updatedAt']) &&
+         request.resource.data.departmentStatuses is map &&
+         request.resource.data.departmentStatuses.size() <= 20)
       ) &&
-        // Only allow updates to specific fields
+        // Only allow updates to specific fields (applies to all users)
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deadline', 'departmentDeadlines', 'departmentStatuses', 'overallStatus', 'taskDetails', 'assignees', 'updatedAt']) ||
          // Or if updating only departmentDeadlines and updatedAt
          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentDeadlines', 'updatedAt']) &&

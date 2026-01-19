@@ -86,8 +86,8 @@ export function StatusSelector({
     await onStatusChange(newStatus)
   }
 
-  // Show pending approval with icon
-  if (currentStatus === 'Pending Approval') {
+  // Show pending approval with icon (but still allow managers/admins to change it)
+  if (currentStatus === 'Pending Approval' && !canApprove && !isTaskCreator) {
     return (
       <div className="status-badge status-pending-approval" style={{ 
         color: currentConfig.color, 
@@ -99,7 +99,22 @@ export function StatusSelector({
     )
   }
 
-  if (!canEdit && !canApprove && !isTaskCreator) {
+  // Check if user can actually edit (either through role, approval, or being task creator)
+  const canActuallyEdit = canEdit || canApprove || isTaskCreator
+
+  // Debug logging
+  if (isTaskCreator) {
+    console.log('🔧 StatusSelector - Task creator detected:', {
+      canEdit,
+      canApprove,
+      isTaskCreator,
+      canActuallyEdit,
+      currentStatus,
+      availableStatuses: getAvailableStatuses(),
+    })
+  }
+
+  if (!canActuallyEdit) {
     // Read-only view
     return (
       <div className="status-badge" style={{ 

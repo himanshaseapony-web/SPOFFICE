@@ -361,7 +361,10 @@ export function UpdateCalendarPage() {
 
   // Update department status
   const handleStatusChange = async (updateId: string, department: string, newStatus: DepartmentStatus) => {
-    if (!firestore || !user || !userProfile) return
+    if (!firestore || !user || !userProfile) {
+      console.error('❌ Cannot update status: missing firestore, user, or userProfile')
+      return
+    }
 
     setIsSubmitting(true)
     setError(null)
@@ -374,11 +377,19 @@ export function UpdateCalendarPage() {
         throw new Error('Update not found')
       }
 
+      const userIsTaskCreator = currentUpdate.createdBy === user.uid
+      console.log('📝 Updating status:', {
+        updateId,
+        department,
+        newStatus,
+        currentStatus: currentUpdate.departmentStatuses?.[department]?.status,
+        userRole: userProfile.role,
+        isTaskCreator: userIsTaskCreator,
+        canApprove,
+      })
+
       const existingStatuses = currentUpdate.departmentStatuses || {}
       const now = new Date().toISOString()
-
-      // Check if user is task creator
-      const userIsTaskCreator = currentUpdate.createdBy === user.uid
 
       // Prepare status update
       const statusUpdate: DepartmentStatusData = {
@@ -516,9 +527,18 @@ export function UpdateCalendarPage() {
 
   // Check if user can edit this department's status
   const canEditDepartmentStatus = (update: CalendarUpdate, department: string): boolean => {
-    if (canApprove) return true // Managers/Admins can edit any
-    if (isTaskCreator(update)) return true // Task creator can edit any department status
+    // Managers/Admins can edit any department status
+    if (canApprove) return true
+    
+    // Task creator can edit any department status (for all departments in the task)
+    if (isTaskCreator(update)) {
+      console.log('✅ Task creator can edit status for department:', department)
+      return true
+    }
+    
+    // Specialists/DepartmentHeads can edit their assigned department's status
     if (canEdit && isUserAssignedToDepartment(update, department)) return true
+    
     return false
   }
 
