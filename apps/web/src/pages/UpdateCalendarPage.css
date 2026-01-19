@@ -72,6 +72,9 @@
   display: flex;
   flex-direction: column;
   transition: opacity 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .calendar-month-past {
@@ -87,8 +90,11 @@
 .calendar-month-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 0;
   margin-top: 1rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .calendar-empty-state {
@@ -114,6 +120,9 @@
   border: 1px solid var(--border-soft);
   background: var(--surface-elevated);
   transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .calendar-update-overdue {
@@ -202,13 +211,15 @@
 .calendar-departments-table {
   border: 1px solid var(--border-soft);
   border-radius: 0.75rem;
-  overflow: hidden;
+  overflow: visible;
   margin-top: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .calendar-dept-row {
   display: grid;
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: 140px 1fr 160px;
   gap: 0.75rem;
   align-items: center;
   border-top: 1px solid var(--border-soft);
@@ -245,6 +256,9 @@
   flex-wrap: wrap;
   gap: 0.375rem;
   align-items: center;
+  min-width: 0;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .calendar-dept-deadline {
@@ -256,7 +270,11 @@
   align-items: flex-end;
   gap: 0.25rem;
   border-left: 1px solid var(--border-soft);
-  min-width: 140px;
+  min-width: 160px;
+  width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .calendar-dept-deadline-overdue {
@@ -266,11 +284,15 @@
 .calendar-dept-deadline-date {
   font-weight: 600;
   font-size: 0.8rem;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .calendar-dept-deadline-time {
   font-size: 0.75rem;
   color: var(--text-muted);
+  white-space: nowrap;
+  text-align: right;
 }
 
 .calendar-dept-overdue-badge {
@@ -282,6 +304,8 @@
 .calendar-dept-no-deadline {
   font-size: 0.75rem;
   color: var(--text-muted);
+  white-space: nowrap;
+  text-align: right;
 }
 
 .calendar-edit-deadline-button {
@@ -295,6 +319,9 @@
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .calendar-edit-deadline-button:hover {
@@ -528,7 +555,7 @@
   }
 
   .calendar-dept-row {
-    grid-template-columns: 120px 1fr auto;
+    grid-template-columns: 120px 1fr 150px;
     gap: 0.5rem;
   }
 
@@ -543,7 +570,7 @@
   }
 
   .calendar-dept-deadline {
-    min-width: 120px;
+    min-width: 150px;
     padding: 0.5rem;
   }
 }
