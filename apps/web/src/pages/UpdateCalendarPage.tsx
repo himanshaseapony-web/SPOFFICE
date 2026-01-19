@@ -55,6 +55,7 @@ export function UpdateCalendarPage() {
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
   const [selectedAssignees, setSelectedAssignees] = useState<Assignee[]>([])
   const [editingDeadline, setEditingDeadline] = useState<{ updateId: string; department: string } | null>(null)
+  const [editingAssignees, setEditingAssignees] = useState<{ updateId: string; assignees: Assignee[] } | null>(null)
   const [departmentDeadlines, setDepartmentDeadlines] = useState<Record<string, { date: string; time: string }>>({})
 
   // Load calendar updates from Firestore
@@ -343,6 +344,118 @@ export function UpdateCalendarPage() {
     }
   }
 
+  // Handle editing assignees
+  const handleOpenEditAssignees = (update: CalendarUpdate) => {
+    setEditingAssignees({
+      updateId: update.id,
+      assignees: [...update.assignees],
+    })
+  }
+
+  const handleCloseEditAssignees = () => {
+    setEditingAssignees(null)
+    setError(null)
+  }
+
+  const handleAddAssignee = (profile: typeof allUserProfiles[0]) => {
+    if (!editingAssignees) return
+    
+    // Check if already added
+    if (editingAssignees.assignees.some(a => a.id === profile.id)) {
+      return
+    }
+
+    const newAssignee: Assignee = {
+      id: profile.id,
+      name: profile.displayName,
+      department: profile.department,
+    }
+
+    setEditingAssignees({
+      ...editingAssignees,
+      assignees: [...editingAssignees.assignees, newAssignee],
+    })
+  }
+
+  const handleRemoveAssignee = (assigneeId: string) => {
+    if (!editingAssignees) return
+    
+    setEditingAssignees({
+      ...editingAssignees,
+      assignees: editingAssignees.assignees.filter(a => a.id !== assigneeId),
+    })
+  }
+
+  const handleUpdateAssignees = async () => {
+    if (!firestore || !editingAssignees || !user || !userProfile) return
+
+    if (editingAssignees.assignees.length === 0) {
+      setError('At least one assignee is required.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const updateRef = doc(firestore, 'calendarUpdates', editingAssignees.updateId)
+      
+      // Get current update to preserve other fields
+      const currentUpdate = calendarUpdates.find(u => u.id === editingAssignees.updateId)
+      if (!currentUpdate) {
+        throw new Error('Update not found')
+      }
+
+      // Update assignees
+      await updateDoc(updateRef, {
+        assignees: editingAssignees.assignees,
+        updatedAt: Timestamp.now(),
+      })
+
+      // Reset department statuses for removed departments and initialize for new departments
+      const currentDepartments = new Set(currentUpdate.assignees.map(a => a.department))
+      const newDepartments = new Set(editingAssignees.assignees.map(a => a.department))
+      
+      // Find removed and added departments
+      const removedDepartments = Array.from(currentDepartments).filter(d => !newDepartments.has(d))
+      const addedDepartments = Array.from(newDepartments).filter(d => !currentDepartments.has(d))
+
+      const updatedStatuses = { ...(currentUpdate.departmentStatuses || {}) }
+
+      // Remove statuses for departments that no longer have assignees
+      removedDepartments.forEach(dept => {
+        delete updatedStatuses[dept]
+      })
+
+      // Initialize statuses for new departments
+      addedDepartments.forEach(dept => {
+        if (!updatedStatuses[dept]) {
+          updatedStatuses[dept] = {
+            status: 'Not Started',
+          }
+        }
+      })
+
+      // Update statuses if there were changes
+      if (removedDepartments.length > 0 || addedDepartments.length > 0) {
+        await updateDoc(updateRef, {
+          departmentStatuses: updatedStatuses,
+        })
+      }
+
+      handleCloseEditAssignees()
+    } catch (err: any) {
+      console.error('Failed to update assignees:', err)
+      let errorMessage = 'Failed to update assignees. Please try again.'
+      if (err.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Only Admins can edit assignees.'
+      }
+      setError(errorMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const canEdit = userProfile?.role === 'Admin' || 
                   userProfile?.role === 'Manager' || 
                   userProfile?.role === 'DepartmentHead'
@@ -528,6 +641,8 @@ export function UpdateCalendarPage() {
     if (!user) return false
     return update.createdBy === user.uid
   }
+
+  const isAdmin = userProfile?.role === 'Admin'
 
   // Check if user can edit this department's status
   const canEditDepartmentStatus = (update: CalendarUpdate, department: string): boolean => {
@@ -715,11 +830,89 @@ export function UpdateCalendarPage() {
 
                                 <div className="calendar-departments-section">
                                   <div className="section-label">
-                                    Assigned To & Deadlines
-                                    {update.overallStatus === 'Completed' && (
-                                      <span className="calendar-overall-status-badge">✓ All Completed</span>
+                                    <span>
+                                      Assigned To & Deadlines
+                                      {update.overallStatus === 'Completed' && (
+                                        <span className="calendar-overall-status-badge">✓ All Completed</span>
+                                      )}
+                                    </span>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditAssignees(update)}
+                                        className="calendar-edit-assignees-button"
+                                        disabled={isSubmitting}
+                                      >
+                                        ✏️ Edit Assignees
+                                      </button>
                                     )}
                                   </div>
+                                  {editingAssignees?.updateId === update.id && (
+                                    <div className="calendar-edit-assignees-panel">
+                                      <div className="calendar-edit-assignees-header">
+                                        <span>Edit Assignees</span>
+                                        <select
+                                          value=""
+                                          onChange={(e) => {
+                                            const profile = allUserProfiles.find((p) => p.id === e.target.value)
+                                            if (profile) {
+                                              handleAddAssignee(profile)
+                                            }
+                                            e.target.value = ''
+                                          }}
+                                          className="calendar-assignee-select"
+                                        >
+                                          <option value="">+ Add assignee...</option>
+                                          {allUserProfiles
+                                            .filter((profile) => !editingAssignees.assignees.some((a) => a.id === profile.id))
+                                            .map((profile) => (
+                                              <option key={profile.id} value={profile.id}>
+                                                {profile.displayName} - {profile.department}
+                                              </option>
+                                            ))}
+                                        </select>
+                                      </div>
+                                      {error && (
+                                        <div className="calendar-form-error">{error}</div>
+                                      )}
+                                      <div className="calendar-edit-assignees-list">
+                                        {editingAssignees.assignees.map((assignee) => (
+                                          <div key={assignee.id} className="calendar-assignee-item">
+                                            <div>
+                                              <strong>{assignee.name}</strong>
+                                              <span className="calendar-assignee-dept">({assignee.department})</span>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveAssignee(assignee.id)}
+                                              className="calendar-remove-assignee-button"
+                                              disabled={isSubmitting}
+                                            >
+                                              Remove
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="calendar-edit-assignees-actions">
+                                        <button
+                                          type="button"
+                                          onClick={handleUpdateAssignees}
+                                          disabled={isSubmitting || editingAssignees.assignees.length === 0}
+                                          className="primary-button"
+                                        >
+                                          Save Changes
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handleCloseEditAssignees}
+                                          disabled={isSubmitting}
+                                          className="ghost-button"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                   <div className="calendar-departments-table">
                                     {Object.entries(assigneesByDept).map(([dept, assignees], idx) => {
                                       const deptDeadline = update.departmentDeadlines?.[dept] 
