@@ -347,6 +347,10 @@ export function UpdateCalendarPage() {
                   userProfile?.role === 'Manager' || 
                   userProfile?.role === 'DepartmentHead'
 
+  // Specialists and DepartmentHeads can edit if assigned
+  const canEditIfAssigned = userProfile?.role === 'Specialist' || 
+                             userProfile?.role === 'DepartmentHead'
+
   const canApprove = userProfile?.role === 'Admin' || userProfile?.role === 'Manager'
 
   // Check if all departments are completed
@@ -537,8 +541,36 @@ export function UpdateCalendarPage() {
     }
     
     // Specialists/DepartmentHeads can edit their assigned department's status
-    if (canEdit && isUserAssignedToDepartment(update, department)) return true
+    // Check if user is assigned to this specific department
+    const isAssigned = isUserAssignedToDepartment(update, department)
+    if (canEditIfAssigned && isAssigned) {
+      console.log('✅ User is assigned to department and can edit:', {
+        department,
+        userRole: userProfile?.role,
+        isAssigned,
+        assignees: update.assignees.filter(a => a.department === department),
+      })
+      return true
+    }
     
+    // Also allow if user has canEdit role (Admin/Manager/DepartmentHead) and is assigned
+    if (canEdit && isAssigned) {
+      console.log('✅ User with edit role is assigned and can edit:', {
+        department,
+        userRole: userProfile?.role,
+        isAssigned,
+      })
+      return true
+    }
+    
+    console.log('❌ User cannot edit status:', {
+      department,
+      userRole: userProfile?.role,
+      canEdit,
+      isAssigned: isUserAssignedToDepartment(update, department),
+      isTaskCreator: isTaskCreator(update),
+      canApprove,
+    })
     return false
   }
 
