@@ -62,9 +62,10 @@
 }
 
 .calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
+  width: 100%;
 }
 
 .calendar-month-card {
@@ -75,6 +76,7 @@
   width: 100%;
   box-sizing: border-box;
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .calendar-month-past {
@@ -219,7 +221,7 @@
 
 .calendar-dept-row {
   display: grid;
-  grid-template-columns: 140px 1fr 160px;
+  grid-template-columns: 140px 1fr 160px 150px;
   gap: 0.75rem;
   align-items: center;
   border-top: 1px solid var(--border-soft);
@@ -275,6 +277,29 @@
   box-sizing: border-box;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+.calendar-dept-status {
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--border-soft);
+  min-width: 150px;
+}
+
+.calendar-overall-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid #10b981;
+  border-radius: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .calendar-dept-deadline-overdue {
@@ -550,13 +575,14 @@
     gap: 1rem;
   }
 
-  .calendar-grid {
-    grid-template-columns: 1fr;
-  }
-
   .calendar-dept-row {
-    grid-template-columns: 120px 1fr 150px;
+    grid-template-columns: 120px 1fr 150px 140px;
     gap: 0.5rem;
+  }
+  
+  .calendar-dept-status {
+    min-width: 140px;
+    padding: 0.5rem;
   }
 
   .calendar-dept-name {

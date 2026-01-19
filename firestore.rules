@@ -186,18 +186,25 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid;
       
       // Allow update for Admin, Manager, and the creator
-      // Can update deadline, departmentDeadlines, taskDetails, assignees, and updatedAt
+      // Can update deadline, departmentDeadlines, departmentStatuses, overallStatus, taskDetails, assignees, and updatedAt
       allow update: if isAuthenticated() && (
         hasRole(['Admin', 'Manager']) ||
-        isOwner(resource.data.createdBy)
+        isOwner(resource.data.createdBy) ||
+        // Allow specialists/department heads to update their department's status
+        (hasRole(['Specialist', 'DepartmentHead']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentStatuses', 'overallStatus', 'updatedAt']))
       ) &&
         // Only allow updates to specific fields
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deadline', 'departmentDeadlines', 'taskDetails', 'assignees', 'updatedAt']) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deadline', 'departmentDeadlines', 'departmentStatuses', 'overallStatus', 'taskDetails', 'assignees', 'updatedAt']) ||
          // Or if updating only departmentDeadlines and updatedAt
          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentDeadlines', 'updatedAt']) &&
           request.resource.data.departmentDeadlines is map &&
           request.resource.data.departmentDeadlines.size() > 0 &&
-          request.resource.data.departmentDeadlines.size() <= 20)) &&
+          request.resource.data.departmentDeadlines.size() <= 20) ||
+         // Or if updating only departmentStatuses, overallStatus, and updatedAt
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentStatuses', 'overallStatus', 'updatedAt']) &&
+          request.resource.data.departmentStatuses is map &&
+          request.resource.data.departmentStatuses.size() <= 20)) &&
         // Preserve required fields
         request.resource.data.month == resource.data.month &&
         request.resource.data.year == resource.data.year &&
@@ -210,6 +217,29 @@ service cloud.firestore {
         hasRole(['Admin', 'Manager']) ||
         isOwner(resource.data.createdBy)
       );
+    }
+    
+    // Calendar Status Notifications - approval requests
+    match /calendarStatusNotifications/{notificationId} {
+      // Allow read for all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow create for authenticated users (when requesting approval)
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll(['updateId', 'department', 'requestedBy', 'requestedByName', 'requestedAt', 'status']) &&
+        request.resource.data.updateId is string &&
+        request.resource.data.department is string &&
+        request.resource.data.requestedBy == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      
+      // Allow update for Admin and Manager (to approve/reject)
+      allow update: if isAuthenticated() &&
+        hasRole(['Admin', 'Manager']) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedAt']) &&
+        request.resource.data.status in ['approved', 'rejected'];
+      
+      // Allow delete for Admin and Manager
+      allow delete: if isAuthenticated() && hasRole(['Admin', 'Manager']);
     }
     
     // Daily Work Updates - created by department heads

@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, updateDoc } from 'firebase/firestore'
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, updateDoc, where, getDocs } from 'firebase/firestore'
+import { StatusSelector, type DepartmentStatus } from '../components/StatusSelector'
+import { playNotificationSound, showDesktopNotification } from '../lib/notifications'
 import './UpdateCalendarPage.css'
 
 type Assignee = {
@@ -10,12 +12,24 @@ type Assignee = {
   department: string
 }
 
+type DepartmentStatusData = {
+  status: DepartmentStatus
+  requestedBy?: string
+  requestedByName?: string
+  requestedAt?: string
+  approvedBy?: string
+  approvedByName?: string
+  approvedAt?: string
+}
+
 type CalendarUpdate = {
   id: string
   month: string // e.g., "January", "February", etc.
   year: number
   deadline: string // ISO date string (legacy - fallback)
   departmentDeadlines?: Record<string, string> // Department name -> ISO datetime string
+  departmentStatuses?: Record<string, DepartmentStatusData> // Department name -> Status data
+  overallStatus?: 'In Progress' | 'Completed'
   taskDetails: string
   assignees: Assignee[] // Multiple assignees with departments
   createdBy: string
@@ -75,6 +89,8 @@ export function UpdateCalendarPage() {
             year: data.year ?? currentYear,
             deadline: data.deadline ?? '',
             departmentDeadlines: data.departmentDeadlines ?? undefined,
+            departmentStatuses: data.departmentStatuses ?? undefined,
+            overallStatus: data.overallStatus ?? 'In Progress',
             taskDetails: data.taskDetails ?? '',
             assignees,
             createdBy: data.createdBy ?? '',
@@ -275,6 +291,14 @@ export function UpdateCalendarPage() {
     // Use the earliest deadline as the main deadline for backward compatibility
     const earliestDeadline = Object.values(deptDeadlines).sort()[0]
 
+    // Initialize department statuses to "Not Started"
+    const initialStatuses: Record<string, DepartmentStatusData> = {}
+    departments.forEach(dept => {
+      initialStatuses[dept] = {
+        status: 'Not Started',
+      }
+    })
+
     setIsSubmitting(true)
 
     try {
@@ -283,6 +307,8 @@ export function UpdateCalendarPage() {
         year: selectedYear,
         deadline: earliestDeadline, // Legacy field for backward compatibility
         departmentDeadlines: deptDeadlines,
+        departmentStatuses: initialStatuses,
+        overallStatus: 'In Progress',
         taskDetails,
         assignees: selectedAssignees,
         createdBy: user.uid,
@@ -320,6 +346,164 @@ export function UpdateCalendarPage() {
   const canEdit = userProfile?.role === 'Admin' || 
                   userProfile?.role === 'Manager' || 
                   userProfile?.role === 'DepartmentHead'
+
+  const canApprove = userProfile?.role === 'Admin' || userProfile?.role === 'Manager'
+
+  // Check if all departments are completed
+  const checkAllDepartmentsComplete = (update: CalendarUpdate): boolean => {
+    if (!update.departmentStatuses) return false
+    const departments = Object.keys(update.departmentStatuses)
+    if (departments.length === 0) return false
+    return departments.every(dept => 
+      update.departmentStatuses![dept]?.status === 'Completed'
+    )
+  }
+
+  // Update department status
+  const handleStatusChange = async (updateId: string, department: string, newStatus: DepartmentStatus) => {
+    if (!firestore || !user || !userProfile) return
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const updateRef = doc(firestore, 'calendarUpdates', updateId)
+      const currentUpdate = calendarUpdates.find(u => u.id === updateId)
+      
+      if (!currentUpdate) {
+        throw new Error('Update not found')
+      }
+
+      const existingStatuses = currentUpdate.departmentStatuses || {}
+      const now = new Date().toISOString()
+
+      // Prepare status update
+      const statusUpdate: DepartmentStatusData = {
+        ...existingStatuses[department],
+        status: newStatus,
+      }
+
+      // If requesting approval, add request metadata
+      if (newStatus === 'Pending Approval') {
+        statusUpdate.requestedBy = user.uid
+        statusUpdate.requestedByName = userProfile.displayName
+        statusUpdate.requestedAt = now
+
+        // Create notification for managers/admins
+        const managersAndAdmins = allUserProfiles.filter(
+          p => p.role === 'Admin' || p.role === 'Manager'
+        )
+
+        // Create notification document
+        await addDoc(collection(firestore, 'calendarStatusNotifications'), {
+          updateId,
+          department,
+          requestedBy: user.uid,
+          requestedByName: userProfile.displayName,
+          requestedAt: Timestamp.now(),
+          status: 'pending',
+          month: currentUpdate.month,
+          year: currentUpdate.year,
+          taskDetails: currentUpdate.taskDetails,
+        })
+
+        // Notify managers and admins
+        playNotificationSound()
+        showDesktopNotification('Calendar Update Approval Requested', {
+          body: `${userProfile.displayName} from ${department} requested approval for: ${currentUpdate.taskDetails}`,
+          tag: `calendar-approval-${updateId}-${department}`,
+          requireInteraction: false,
+        })
+
+        // Also notify via company chat (optional - can be removed if not needed)
+        if (managersAndAdmins.length > 0) {
+          const notificationText = `📋 Approval Request: ${userProfile.displayName} from ${department} has completed their work and requested approval for "${currentUpdate.taskDetails}" in ${currentUpdate.month} ${currentUpdate.year}.`
+          
+          await addDoc(collection(firestore, 'companyChats'), {
+            author: 'System',
+            authorId: 'system',
+            role: 'System',
+            text: notificationText,
+            createdAt: Timestamp.now(),
+          })
+        }
+      }
+
+      // If approving, add approval metadata
+      if (newStatus === 'Completed' && existingStatuses[department]?.status === 'Pending Approval') {
+        statusUpdate.approvedBy = user.uid
+        statusUpdate.approvedByName = userProfile.displayName
+        statusUpdate.approvedAt = now
+
+        // Mark notification as approved
+        const notificationsRef = collection(firestore, 'calendarStatusNotifications')
+        const notificationsQuery = query(
+          notificationsRef,
+          where('updateId', '==', updateId),
+          where('department', '==', department),
+          where('status', '==', 'pending')
+        )
+        const notificationsSnapshot = await getDocs(notificationsQuery)
+        notificationsSnapshot.forEach(async (notifDoc) => {
+          await updateDoc(doc(firestore, 'calendarStatusNotifications', notifDoc.id), {
+            status: 'approved',
+            reviewedBy: user.uid,
+            reviewedAt: Timestamp.now(),
+          })
+        })
+      }
+
+      // Update department status
+      const updatedStatuses = {
+        ...existingStatuses,
+        [department]: statusUpdate,
+      }
+
+      // Check if all departments are completed
+      const tempUpdate = { ...currentUpdate, departmentStatuses: updatedStatuses }
+      const allComplete = checkAllDepartmentsComplete(tempUpdate)
+
+      // Update the calendar update
+      await updateDoc(updateRef, {
+        departmentStatuses: updatedStatuses,
+        overallStatus: allComplete ? 'Completed' : 'In Progress',
+        updatedAt: Timestamp.now(),
+      })
+
+      // If all completed, show notification
+      if (allComplete) {
+        playNotificationSound()
+        showDesktopNotification('Calendar Update Completed', {
+          body: `All departments have completed their work for: ${currentUpdate.taskDetails}`,
+          tag: `calendar-completed-${updateId}`,
+        })
+      }
+    } catch (err: any) {
+      console.error('Failed to update status:', err)
+      let errorMessage = 'Failed to update status. Please try again.'
+      if (err.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Check your role permissions.'
+      }
+      setError(errorMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Check if user is assigned to this department
+  const isUserAssignedToDepartment = (update: CalendarUpdate, department: string): boolean => {
+    if (!user) return false
+    return update.assignees.some(
+      assignee => assignee.department === department && assignee.id === user.uid
+    )
+  }
+
+  // Check if user can edit this department's status
+  const canEditDepartmentStatus = (update: CalendarUpdate, department: string): boolean => {
+    if (canApprove) return true // Managers/Admins can edit any
+    if (canEdit && isUserAssignedToDepartment(update, department)) return true
+    return false
+  }
 
   return (
     <div className="calendar-page">
@@ -461,7 +645,12 @@ export function UpdateCalendarPage() {
                                 </div>
 
                                 <div className="calendar-departments-section">
-                                  <div className="section-label">Assigned To & Deadlines</div>
+                                  <div className="section-label">
+                                    Assigned To & Deadlines
+                                    {update.overallStatus === 'Completed' && (
+                                      <span className="calendar-overall-status-badge">✓ All Completed</span>
+                                    )}
+                                  </div>
                                   <div className="calendar-departments-table">
                                     {Object.entries(assigneesByDept).map(([dept, assignees], idx) => {
                                       const deptDeadline = update.departmentDeadlines?.[dept] 
@@ -470,6 +659,8 @@ export function UpdateCalendarPage() {
                                       const isDeptOverdue = deptDeadline && deptDeadline < new Date() && 
                                                            deptDeadline.toDateString() !== new Date().toDateString()
                                       const isEditing = editingDeadline?.updateId === update.id && editingDeadline?.department === dept
+                                      const deptStatus = update.departmentStatuses?.[dept]?.status || 'Not Started'
+                                      const canEditDeptStatus = canEditDepartmentStatus(update, dept)
                                       
                                       return (
                                         <div
@@ -560,6 +751,17 @@ export function UpdateCalendarPage() {
                                                 )}
                                               </>
                                             )}
+                                          </div>
+                                          <div className="calendar-dept-status">
+                                            <StatusSelector
+                                              currentStatus={deptStatus}
+                                              department={dept}
+                                              updateId={update.id}
+                                              canEdit={canEditDeptStatus}
+                                              canApprove={canApprove}
+                                              onStatusChange={(newStatus) => handleStatusChange(update.id, dept, newStatus)}
+                                              isSubmitting={isSubmitting}
+                                            />
                                           </div>
                                         </div>
                                       )
