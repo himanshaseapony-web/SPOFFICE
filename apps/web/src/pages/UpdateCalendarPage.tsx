@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
-import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, updateDoc } from 'firebase/firestore'
 
 type Assignee = {
   name: string
@@ -13,7 +13,8 @@ type CalendarUpdate = {
   id: string
   month: string // e.g., "January", "February", etc.
   year: number
-  deadline: string // ISO date string
+  deadline: string // ISO date string (legacy - fallback)
+  departmentDeadlines?: Record<string, string> // Department name -> ISO datetime string
   taskDetails: string
   assignees: Assignee[] // Multiple assignees with departments
   createdBy: string
@@ -38,6 +39,8 @@ export function UpdateCalendarPage() {
   const [error, setError] = useState<string | null>(null)
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
   const [selectedAssignees, setSelectedAssignees] = useState<Assignee[]>([])
+  const [editingDeadline, setEditingDeadline] = useState<{ updateId: string; department: string } | null>(null)
+  const [departmentDeadlines, setDepartmentDeadlines] = useState<Record<string, { date: string; time: string }>>({})
 
   // Load calendar updates from Firestore
   useEffect(() => {
@@ -70,6 +73,7 @@ export function UpdateCalendarPage() {
             month: data.month ?? '',
             year: data.year ?? currentYear,
             deadline: data.deadline ?? '',
+            departmentDeadlines: data.departmentDeadlines ?? undefined,
             taskDetails: data.taskDetails ?? '',
             assignees,
             createdBy: data.createdBy ?? '',
@@ -122,7 +126,89 @@ export function UpdateCalendarPage() {
     setIsCreateOpen(false)
     setSelectedMonth('')
     setSelectedAssignees([])
+    setDepartmentDeadlines({})
     setError(null)
+  }
+
+  const handleOpenEditDeadline = (updateId: string, department: string, currentDeadline?: string) => {
+    setEditingDeadline({ updateId, department })
+    if (currentDeadline) {
+      const date = new Date(currentDeadline)
+      const dateStr = date.toISOString().split('T')[0]
+      const timeStr = date.toTimeString().slice(0, 5) // HH:MM format
+      setDepartmentDeadlines({
+        [department]: { date: dateStr, time: timeStr }
+      })
+    } else {
+      // Default to tomorrow at 5 PM
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const dateStr = tomorrow.toISOString().split('T')[0]
+      setDepartmentDeadlines({
+        [department]: { date: dateStr, time: '17:00' }
+      })
+    }
+  }
+
+  const handleCloseEditDeadline = () => {
+    setEditingDeadline(null)
+    setDepartmentDeadlines({})
+    setError(null)
+  }
+
+  const handleUpdateDeadline = async (updateId: string, department: string) => {
+    if (!firestore || !user) return
+
+    const deadlineData = departmentDeadlines[department]
+    if (!deadlineData || !deadlineData.date || !deadlineData.time) {
+      setError('Please provide both date and time for the deadline.')
+      return
+    }
+
+    // Combine date and time into ISO string
+    const deadlineDateTime = new Date(`${deadlineData.date}T${deadlineData.time}`)
+    if (isNaN(deadlineDateTime.getTime())) {
+      setError('Invalid date or time. Please check your input.')
+      return
+    }
+
+    const deadlineISO = deadlineDateTime.toISOString()
+
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      const updateRef = doc(firestore, 'calendarUpdates', updateId)
+      const updateData: any = {
+        updatedAt: Timestamp.now(),
+      }
+
+      // Get current update to merge department deadlines
+      const currentUpdate = calendarUpdates.find(u => u.id === updateId)
+      if (currentUpdate) {
+        const existingDeadlines = currentUpdate.departmentDeadlines || {}
+        updateData.departmentDeadlines = {
+          ...existingDeadlines,
+          [department]: deadlineISO,
+        }
+      } else {
+        updateData.departmentDeadlines = {
+          [department]: deadlineISO,
+        }
+      }
+
+      await updateDoc(updateRef, updateData)
+      handleCloseEditDeadline()
+    } catch (err: any) {
+      console.error('Failed to update deadline:', err)
+      let errorMessage = 'Failed to update deadline. Please try again.'
+      if (err.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Check your role permissions.'
+      }
+      setError(errorMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const addAssignee = (profile: typeof allUserProfiles[0]) => {
@@ -152,14 +238,9 @@ export function UpdateCalendarPage() {
     }
 
     const formData = new FormData(event.currentTarget)
-    const deadline = (formData.get('deadline') as string)?.trim() ?? ''
     const taskDetails = (formData.get('taskDetails') as string)?.trim() ?? ''
 
     // Validation
-    if (!deadline) {
-      setError('Deadline is required.')
-      return
-    }
     if (!taskDetails) {
       setError('Task details are required.')
       return
@@ -169,13 +250,38 @@ export function UpdateCalendarPage() {
       return
     }
 
+    // Build department deadlines from form data
+    const deptDeadlines: Record<string, string> = {}
+    const departments = [...new Set(selectedAssignees.map(a => a.department))]
+    
+    for (const dept of departments) {
+      const dateInput = formData.get(`deadline-date-${dept}`) as string
+      const timeInput = formData.get(`deadline-time-${dept}`) as string
+      
+      if (dateInput && timeInput) {
+        const deadlineDateTime = new Date(`${dateInput}T${timeInput}`)
+        if (!isNaN(deadlineDateTime.getTime())) {
+          deptDeadlines[dept] = deadlineDateTime.toISOString()
+        }
+      }
+    }
+
+    if (Object.keys(deptDeadlines).length === 0) {
+      setError('At least one department deadline is required.')
+      return
+    }
+
+    // Use the earliest deadline as the main deadline for backward compatibility
+    const earliestDeadline = Object.values(deptDeadlines).sort()[0]
+
     setIsSubmitting(true)
 
     try {
       await addDoc(collection(firestore, 'calendarUpdates'), {
         month: selectedMonth,
         year: selectedYear,
-        deadline,
+        deadline: earliestDeadline, // Legacy field for backward compatibility
+        departmentDeadlines: deptDeadlines,
         taskDetails,
         assignees: selectedAssignees,
         createdBy: user.uid,
@@ -333,8 +439,18 @@ export function UpdateCalendarPage() {
                       return (
                         <>
                           {displayUpdates.map((update) => {
-                            const deadlineDate = new Date(update.deadline)
-                            const isOverdue = deadlineDate < new Date() && deadlineDate.toDateString() !== new Date().toDateString()
+                            // Get the earliest deadline for display (either from departmentDeadlines or legacy deadline)
+                            const getEarliestDeadline = () => {
+                              if (update.departmentDeadlines && Object.keys(update.departmentDeadlines).length > 0) {
+                                const deadlines = Object.values(update.departmentDeadlines).map(d => new Date(d))
+                                return deadlines.sort((a, b) => a.getTime() - b.getTime())[0]
+                              }
+                              return update.deadline ? new Date(update.deadline) : null
+                            }
+                            
+                            const earliestDeadline = getEarliestDeadline()
+                            const isOverdue = earliestDeadline && earliestDeadline < new Date() && 
+                                            earliestDeadline.toDateString() !== new Date().toDateString()
                             
                             // Group assignees by department
                             const assigneesByDept = update.assignees.reduce((acc, assignee) => {
@@ -369,22 +485,35 @@ export function UpdateCalendarPage() {
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>📅</span>
                                     <div>
-                                      <div
-                                        style={{
-                                          fontSize: '0.875rem',
-                                          fontWeight: 700,
-                                          color: isOverdue ? '#dc2626' : 'var(--text-primary)',
-                                        }}
-                                      >
-                                        {new Date(update.deadline).toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: 'numeric',
-                                          year: 'numeric',
-                                        })}
-                                      </div>
-                                      {isOverdue && (
-                                        <div style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>
-                                          OVERDUE
+                                      {earliestDeadline ? (
+                                        <>
+                                          <div
+                                            style={{
+                                              fontSize: '0.875rem',
+                                              fontWeight: 700,
+                                              color: isOverdue ? '#dc2626' : 'var(--text-primary)',
+                                            }}
+                                          >
+                                            {earliestDeadline.toLocaleDateString('en-US', {
+                                              month: 'short',
+                                              day: 'numeric',
+                                              year: 'numeric',
+                                            })}
+                                            {' '}
+                                            {earliestDeadline.toLocaleTimeString('en-US', {
+                                              hour: 'numeric',
+                                              minute: '2-digit',
+                                            })}
+                                          </div>
+                                          {isOverdue && (
+                                            <div style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>
+                                              OVERDUE
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                                          No deadline set
                                         </div>
                                       )}
                                     </div>
@@ -443,7 +572,7 @@ export function UpdateCalendarPage() {
                                   </p>
                                 </div>
 
-                                {/* Assignees by Department - Table Style */}
+                                {/* Assignees by Department - Table Style with Deadlines */}
                                 <div>
                                   <div
                                     style={{
@@ -455,7 +584,7 @@ export function UpdateCalendarPage() {
                                       fontWeight: 600,
                                     }}
                                   >
-                                    Assigned To
+                                    Assigned To & Deadlines
                                   </div>
                                   <div
                                     style={{
@@ -464,49 +593,208 @@ export function UpdateCalendarPage() {
                                       overflow: 'hidden',
                                     }}
                                   >
-                                    {Object.entries(assigneesByDept).map(([dept, assignees], idx) => (
-                                      <div
-                                        key={dept}
-                                        style={{
-                                          display: 'grid',
-                                          gridTemplateColumns: '140px 1fr',
-                                          borderTop: idx > 0 ? '1px solid var(--border-soft)' : 'none',
-                                          background: idx % 2 === 0 ? 'var(--surface-default)' : 'var(--surface-subtle)',
-                                        }}
-                                      >
+                                    {Object.entries(assigneesByDept).map(([dept, assignees], idx) => {
+                                      const deptDeadline = update.departmentDeadlines?.[dept] 
+                                        ? new Date(update.departmentDeadlines[dept])
+                                        : (update.deadline ? new Date(update.deadline) : null)
+                                      const isDeptOverdue = deptDeadline && deptDeadline < new Date() && 
+                                                           deptDeadline.toDateString() !== new Date().toDateString()
+                                      const isEditing = editingDeadline?.updateId === update.id && editingDeadline?.department === dept
+                                      
+                                      return (
                                         <div
+                                          key={dept}
                                           style={{
-                                            padding: '0.5rem 0.75rem',
-                                            fontWeight: 600,
-                                            fontSize: '0.75rem',
-                                            color: 'var(--accent)',
-                                            borderRight: '1px solid var(--border-soft)',
-                                            display: 'flex',
-                                            alignItems: 'center',
+                                            display: 'grid',
+                                            gridTemplateColumns: '140px 1fr auto',
+                                            borderTop: idx > 0 ? '1px solid var(--border-soft)' : 'none',
+                                            background: idx % 2 === 0 ? 'var(--surface-default)' : 'var(--surface-subtle)',
                                           }}
                                         >
-                                          {dept}
+                                          <div
+                                            style={{
+                                              padding: '0.5rem 0.75rem',
+                                              fontWeight: 600,
+                                              fontSize: '0.75rem',
+                                              color: 'var(--accent)',
+                                              borderRight: '1px solid var(--border-soft)',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                            }}
+                                          >
+                                            {dept}
+                                          </div>
+                                          <div
+                                            style={{
+                                              padding: '0.5rem 0.75rem',
+                                              fontSize: '0.75rem',
+                                              color: 'var(--text-secondary)',
+                                              display: 'flex',
+                                              flexWrap: 'wrap',
+                                              gap: '0.375rem',
+                                              alignItems: 'center',
+                                            }}
+                                          >
+                                            {assignees.map((assignee, aIdx) => (
+                                              <span key={assignee.id}>
+                                                {assignee.name}
+                                                {aIdx < assignees.length - 1 && ','}
+                                              </span>
+                                            ))}
+                                          </div>
+                                          <div
+                                            style={{
+                                              padding: '0.5rem 0.75rem',
+                                              fontSize: '0.7rem',
+                                              color: isDeptOverdue ? '#dc2626' : 'var(--text-secondary)',
+                                              display: 'flex',
+                                              flexDirection: 'column',
+                                              alignItems: 'flex-end',
+                                              gap: '0.25rem',
+                                              borderLeft: '1px solid var(--border-soft)',
+                                              minWidth: '120px',
+                                            }}
+                                          >
+                                            {isEditing ? (
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%' }}>
+                                                <input
+                                                  type="date"
+                                                  value={departmentDeadlines[dept]?.date || ''}
+                                                  onChange={(e) => setDepartmentDeadlines({
+                                                    ...departmentDeadlines,
+                                                    [dept]: { ...departmentDeadlines[dept], date: e.target.value, time: departmentDeadlines[dept]?.time || '17:00' }
+                                                  })}
+                                                  style={{
+                                                    padding: '0.25rem',
+                                                    fontSize: '0.7rem',
+                                                    border: '1px solid var(--border-soft)',
+                                                    borderRadius: '0.25rem',
+                                                    width: '100%',
+                                                  }}
+                                                />
+                                                <input
+                                                  type="time"
+                                                  value={departmentDeadlines[dept]?.time || ''}
+                                                  onChange={(e) => setDepartmentDeadlines({
+                                                    ...departmentDeadlines,
+                                                    [dept]: { ...departmentDeadlines[dept], date: departmentDeadlines[dept]?.date || '', time: e.target.value }
+                                                  })}
+                                                  style={{
+                                                    padding: '0.25rem',
+                                                    fontSize: '0.7rem',
+                                                    border: '1px solid var(--border-soft)',
+                                                    borderRadius: '0.25rem',
+                                                    width: '100%',
+                                                  }}
+                                                />
+                                                {error && editingDeadline?.updateId === update.id && editingDeadline?.department === dept && (
+                                                  <div style={{
+                                                    fontSize: '0.65rem',
+                                                    color: '#dc2626',
+                                                    padding: '0.25rem',
+                                                    background: 'rgba(220, 38, 38, 0.1)',
+                                                    borderRadius: '0.25rem',
+                                                    width: '100%',
+                                                  }}>
+                                                    {error}
+                                                  </div>
+                                                )}
+                                                <div style={{ display: 'flex', gap: '0.25rem', width: '100%' }}>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleUpdateDeadline(update.id, dept)}
+                                                    disabled={isSubmitting}
+                                                    style={{
+                                                      flex: 1,
+                                                      padding: '0.25rem 0.5rem',
+                                                      fontSize: '0.65rem',
+                                                      background: 'var(--accent)',
+                                                      color: 'white',
+                                                      border: 'none',
+                                                      borderRadius: '0.25rem',
+                                                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                                                      opacity: isSubmitting ? 0.6 : 1,
+                                                    }}
+                                                  >
+                                                    Save
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={handleCloseEditDeadline}
+                                                    disabled={isSubmitting}
+                                                    style={{
+                                                      flex: 1,
+                                                      padding: '0.25rem 0.5rem',
+                                                      fontSize: '0.65rem',
+                                                      background: 'transparent',
+                                                      color: 'var(--text-muted)',
+                                                      border: '1px solid var(--border-soft)',
+                                                      borderRadius: '0.25rem',
+                                                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                                                    }}
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <>
+                                                {deptDeadline ? (
+                                                  <>
+                                                    <div style={{ fontWeight: 600 }}>
+                                                      {deptDeadline.toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                      })}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.65rem' }}>
+                                                      {deptDeadline.toLocaleTimeString('en-US', {
+                                                        hour: 'numeric',
+                                                        minute: '2-digit',
+                                                      })}
+                                                    </div>
+                                                    {isDeptOverdue && (
+                                                      <div style={{ fontSize: '0.6rem', color: '#dc2626', fontWeight: 600 }}>
+                                                        OVERDUE
+                                                      </div>
+                                                    )}
+                                                  </>
+                                                ) : (
+                                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                                    No deadline
+                                                  </div>
+                                                )}
+                                                {canEdit && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleOpenEditDeadline(update.id, dept, update.departmentDeadlines?.[dept] || update.deadline)}
+                                                    style={{
+                                                      marginTop: '0.25rem',
+                                                      padding: '0.25rem 0.5rem',
+                                                      fontSize: '0.65rem',
+                                                      background: 'transparent',
+                                                      color: 'var(--accent)',
+                                                      border: '1px solid var(--accent)',
+                                                      borderRadius: '0.25rem',
+                                                      cursor: 'pointer',
+                                                      fontWeight: 500,
+                                                    }}
+                                                    onMouseOver={(e) => {
+                                                      e.currentTarget.style.background = 'var(--accent-soft)'
+                                                    }}
+                                                    onMouseOut={(e) => {
+                                                      e.currentTarget.style.background = 'transparent'
+                                                    }}
+                                                  >
+                                                    {deptDeadline ? 'Edit' : 'Set'}
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
                                         </div>
-                                        <div
-                                          style={{
-                                            padding: '0.5rem 0.75rem',
-                                            fontSize: '0.75rem',
-                                            color: 'var(--text-secondary)',
-                                            display: 'flex',
-                                            flexWrap: 'wrap',
-                                            gap: '0.375rem',
-                                            alignItems: 'center',
-                                          }}
-                                        >
-                                          {assignees.map((assignee, aIdx) => (
-                                            <span key={assignee.id}>
-                                              {assignee.name}
-                                              {aIdx < assignees.length - 1 && ','}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    ))}
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               </div>
@@ -574,11 +862,6 @@ export function UpdateCalendarPage() {
               </button>
             </header>
             <form className="modal-form" onSubmit={handleSubmit}>
-              <label>
-                <span>Deadline</span>
-                <input name="deadline" type="date" required />
-              </label>
-
               <label>
                 <span>Task Details</span>
                 <textarea
@@ -682,6 +965,94 @@ export function UpdateCalendarPage() {
                   </small>
                 )}
               </div>
+
+              {/* Department Deadlines Section */}
+              {selectedAssignees.length > 0 && (
+                <div>
+                  <label style={{ marginBottom: '0.5rem' }}>
+                    <span>Department Deadlines</span>
+                  </label>
+                  <div
+                    style={{
+                      border: '1px solid var(--border-soft)',
+                      borderRadius: '0.5rem',
+                      overflow: 'hidden',
+                      background: 'var(--surface-subtle)',
+                    }}
+                  >
+                    {[...new Set(selectedAssignees.map(a => a.department))].map((dept, idx) => {
+                      const defaultDate = new Date()
+                      defaultDate.setDate(defaultDate.getDate() + 7) // Default to 7 days from now
+                      const defaultDateStr = defaultDate.toISOString().split('T')[0]
+                      const defaultTimeStr = '17:00'
+                      
+                      return (
+                        <div
+                          key={dept}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '140px 1fr 1fr',
+                            gap: '0.75rem',
+                            padding: '0.75rem',
+                            borderTop: idx > 0 ? '1px solid var(--border-soft)' : 'none',
+                            background: idx % 2 === 0 ? 'var(--surface-default)' : 'var(--surface-subtle)',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: '0.875rem',
+                              color: 'var(--accent)',
+                            }}
+                          >
+                            {dept}
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Date
+                            </label>
+                            <input
+                              name={`deadline-date-${dept}`}
+                              type="date"
+                              defaultValue={defaultDateStr}
+                              required
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid var(--border-soft)',
+                                borderRadius: '0.375rem',
+                                fontSize: '0.875rem',
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              Time
+                            </label>
+                            <input
+                              name={`deadline-time-${dept}`}
+                              type="time"
+                              defaultValue={defaultTimeStr}
+                              required
+                              style={{
+                                width: '100%',
+                                padding: '0.5rem',
+                                border: '1px solid var(--border-soft)',
+                                borderRadius: '0.375rem',
+                                fontSize: '0.875rem',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                    Set a deadline date and time for each department. Deadlines can be edited later if needed.
+                  </small>
+                </div>
+              )}
 
               {error && (
                 <div

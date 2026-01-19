@@ -165,13 +165,19 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         getUserProfileExists() &&
         hasRole(['Admin', 'Manager', 'DepartmentHead']) &&
-        request.resource.data.keys().hasAll(['month', 'year', 'deadline', 'taskDetails', 'assignees', 'createdBy', 'createdByName', 'createdAt']) &&
+        request.resource.data.keys().hasAll(['month', 'year', 'taskDetails', 'assignees', 'createdBy', 'createdByName', 'createdAt']) &&
         request.resource.data.month is string &&
         request.resource.data.month.size() > 0 &&
         request.resource.data.year is int &&
         request.resource.data.year >= 2020 &&
         request.resource.data.year <= 2100 &&
-        request.resource.data.deadline is string &&
+        // deadline is optional (for backward compatibility), but if present must be string
+        (!('deadline' in request.resource.data) || request.resource.data.deadline is string) &&
+        // departmentDeadlines is optional, but if present must be a map
+        (!('departmentDeadlines' in request.resource.data) || 
+         (request.resource.data.departmentDeadlines is map &&
+          request.resource.data.departmentDeadlines.size() > 0 &&
+          request.resource.data.departmentDeadlines.size() <= 20)) &&
         request.resource.data.taskDetails is string &&
         request.resource.data.taskDetails.size() > 0 &&
         request.resource.data.assignees is list &&
@@ -180,10 +186,24 @@ service cloud.firestore {
         request.resource.data.createdBy == request.auth.uid;
       
       // Allow update for Admin, Manager, and the creator
+      // Can update deadline, departmentDeadlines, taskDetails, assignees, and updatedAt
       allow update: if isAuthenticated() && (
         hasRole(['Admin', 'Manager']) ||
         isOwner(resource.data.createdBy)
-      );
+      ) &&
+        // Only allow updates to specific fields
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deadline', 'departmentDeadlines', 'taskDetails', 'assignees', 'updatedAt']) ||
+         // Or if updating only departmentDeadlines and updatedAt
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['departmentDeadlines', 'updatedAt']) &&
+          request.resource.data.departmentDeadlines is map &&
+          request.resource.data.departmentDeadlines.size() > 0 &&
+          request.resource.data.departmentDeadlines.size() <= 20)) &&
+        // Preserve required fields
+        request.resource.data.month == resource.data.month &&
+        request.resource.data.year == resource.data.year &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdByName == resource.data.createdByName &&
+        request.resource.data.createdAt == resource.data.createdAt;
       
       // Allow delete for Admin, Manager, and the creator
       allow delete: if isAuthenticated() && (
