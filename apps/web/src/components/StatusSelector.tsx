@@ -22,8 +22,6 @@ const statusConfig: Record<DepartmentStatus, { label: string; color: string; bgC
 
 export function StatusSelector({
   currentStatus,
-  department,
-  updateId,
   canEdit,
   canApprove,
   onStatusChange,
