@@ -377,14 +377,17 @@ export function UpdateCalendarPage() {
       const existingStatuses = currentUpdate.departmentStatuses || {}
       const now = new Date().toISOString()
 
+      // Check if user is task creator
+      const userIsTaskCreator = currentUpdate.createdBy === user.uid
+
       // Prepare status update
       const statusUpdate: DepartmentStatusData = {
         ...existingStatuses[department],
         status: newStatus,
       }
 
-      // If requesting approval, add request metadata
-      if (newStatus === 'Pending Approval') {
+      // If requesting approval (Specialist/DepartmentHead setting to Pending Approval)
+      if (newStatus === 'Pending Approval' && !userIsTaskCreator && !canApprove) {
         statusUpdate.requestedBy = user.uid
         statusUpdate.requestedByName = userProfile.displayName
         statusUpdate.requestedAt = now
@@ -415,7 +418,7 @@ export function UpdateCalendarPage() {
           requireInteraction: false,
         })
 
-        // Also notify via company chat (optional - can be removed if not needed)
+        // Also notify via company chat
         if (managersAndAdmins.length > 0) {
           const notificationText = `📋 Approval Request: ${userProfile.displayName} from ${department} has completed their work and requested approval for "${currentUpdate.taskDetails}" in ${currentUpdate.month} ${currentUpdate.year}.`
           
@@ -429,28 +432,35 @@ export function UpdateCalendarPage() {
         }
       }
 
-      // If approving, add approval metadata
-      if (newStatus === 'Completed' && existingStatuses[department]?.status === 'Pending Approval') {
-        statusUpdate.approvedBy = user.uid
-        statusUpdate.approvedByName = userProfile.displayName
-        statusUpdate.approvedAt = now
+      // Only Managers/Admins can approve Pending Approval → Completed
+      if (newStatus === 'Completed') {
+        // Check if this is an approval (from Pending Approval) and user has permission
+        if (existingStatuses[department]?.status === 'Pending Approval' && canApprove) {
+          // Manager/Admin is approving the request
+          statusUpdate.approvedBy = user.uid
+          statusUpdate.approvedByName = userProfile.displayName
+          statusUpdate.approvedAt = now
 
-        // Mark notification as approved
-        const notificationsRef = collection(firestore, 'calendarStatusNotifications')
-        const notificationsQuery = query(
-          notificationsRef,
-          where('updateId', '==', updateId),
-          where('department', '==', department),
-          where('status', '==', 'pending')
-        )
-        const notificationsSnapshot = await getDocs(notificationsQuery)
-        notificationsSnapshot.forEach(async (notifDoc) => {
-          await updateDoc(doc(firestore, 'calendarStatusNotifications', notifDoc.id), {
-            status: 'approved',
-            reviewedBy: user.uid,
-            reviewedAt: Timestamp.now(),
+          // Mark notification as approved
+          const notificationsRef = collection(firestore, 'calendarStatusNotifications')
+          const notificationsQuery = query(
+            notificationsRef,
+            where('updateId', '==', updateId),
+            where('department', '==', department),
+            where('status', '==', 'pending')
+          )
+          const notificationsSnapshot = await getDocs(notificationsQuery)
+          notificationsSnapshot.forEach(async (notifDoc) => {
+            await updateDoc(doc(firestore, 'calendarStatusNotifications', notifDoc.id), {
+              status: 'approved',
+              reviewedBy: user.uid,
+              reviewedAt: Timestamp.now(),
+            })
           })
-        })
+        } else if (!canApprove) {
+          // Non-managers/admins trying to set to Completed - not allowed
+          throw new Error('Only Managers and Admins can approve requests and set status to Completed.')
+        }
       }
 
       // Update department status
@@ -498,9 +508,16 @@ export function UpdateCalendarPage() {
     )
   }
 
+  // Check if user is the task creator
+  const isTaskCreator = (update: CalendarUpdate): boolean => {
+    if (!user) return false
+    return update.createdBy === user.uid
+  }
+
   // Check if user can edit this department's status
   const canEditDepartmentStatus = (update: CalendarUpdate, department: string): boolean => {
     if (canApprove) return true // Managers/Admins can edit any
+    if (isTaskCreator(update)) return true // Task creator can edit any department status
     if (canEdit && isUserAssignedToDepartment(update, department)) return true
     return false
   }
@@ -759,6 +776,7 @@ export function UpdateCalendarPage() {
                                               updateId={update.id}
                                               canEdit={canEditDeptStatus}
                                               canApprove={canApprove}
+                                              isTaskCreator={isTaskCreator(update)}
                                               onStatusChange={(newStatus) => handleStatusChange(update.id, dept, newStatus)}
                                               isSubmitting={isSubmitting}
                                             />

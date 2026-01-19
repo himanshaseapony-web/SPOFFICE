@@ -509,6 +509,8 @@
   padding: 0.75rem;
   border-top: 1px solid var(--border-soft);
   align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .calendar-deadline-row:first-child {
@@ -535,6 +537,8 @@
   gap: 0.4rem;
   font-size: 0.8rem;
   color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .calendar-deadline-row input {
@@ -545,6 +549,8 @@
   font-size: 0.875rem;
   background: var(--surface-default);
   color: var(--text-primary);
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .calendar-deadline-row input:focus {
@@ -628,5 +634,17 @@
   .calendar-deadline-row {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .calendar-deadline-dept-name {
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 0.5rem;
+  }
+
+  .calendar-dept-status {
+    border-left: none;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 0.5rem;
+    justify-content: flex-start;
   }
 }

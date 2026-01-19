@@ -9,6 +9,7 @@ type StatusSelectorProps = {
   updateId: string
   canEdit: boolean
   canApprove: boolean
+  isTaskCreator?: boolean // User created this task
   onStatusChange: (status: DepartmentStatus) => Promise<void>
   isSubmitting?: boolean
 }
@@ -24,6 +25,7 @@ export function StatusSelector({
   currentStatus,
   canEdit,
   canApprove,
+  isTaskCreator = false,
   onStatusChange,
   isSubmitting = false,
 }: StatusSelectorProps) {
@@ -33,20 +35,38 @@ export function StatusSelector({
 
   // Determine available statuses based on role and current status
   const getAvailableStatuses = (): DepartmentStatus[] => {
+    // Only Managers/Admins can set to Completed (by approving Pending Approval)
     if (canApprove) {
-      // Managers/Admins can set any status
+      // Managers/Admins can set any status, including approving Pending Approval → Completed
       return ['Not Started', 'In Progress', 'Pending Approval', 'Completed']
     }
     
-    if (canEdit) {
-      // Specialists/DepartmentHeads can progress through workflow
+    // Task creators can set In Progress and request Pending Approval, but NOT Completed
+    if (isTaskCreator) {
       switch (currentStatus) {
         case 'Not Started':
           return ['Not Started', 'In Progress']
         case 'In Progress':
           return ['In Progress', 'Pending Approval']
         case 'Pending Approval':
-          return ['Pending Approval'] // Can't change once pending
+          return ['Pending Approval'] // Can't change once pending - waiting for manager/admin approval
+        case 'Completed':
+          return ['Completed'] // Can't change once completed
+        default:
+          return [currentStatus]
+      }
+    }
+    
+    if (canEdit) {
+      // Specialists/DepartmentHeads can only progress: Not Started → In Progress → Pending Approval
+      // They CANNOT set to Completed directly - must request approval
+      switch (currentStatus) {
+        case 'Not Started':
+          return ['Not Started', 'In Progress']
+        case 'In Progress':
+          return ['In Progress', 'Pending Approval']
+        case 'Pending Approval':
+          return ['Pending Approval'] // Can't change once pending - waiting for approval
         case 'Completed':
           return ['Completed'] // Can't change once completed
         default:
@@ -66,7 +86,20 @@ export function StatusSelector({
     await onStatusChange(newStatus)
   }
 
-  if (!canEdit && !canApprove) {
+  // Show pending approval with icon
+  if (currentStatus === 'Pending Approval') {
+    return (
+      <div className="status-badge status-pending-approval" style={{ 
+        color: currentConfig.color, 
+        backgroundColor: currentConfig.bgColor 
+      }}>
+        <span className="status-pending-icon">⏳</span>
+        {currentConfig.label}
+      </div>
+    )
+  }
+
+  if (!canEdit && !canApprove && !isTaskCreator) {
     // Read-only view
     return (
       <div className="status-badge" style={{ 

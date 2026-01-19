@@ -237,6 +237,18 @@
   min-width: 0;
 }
 
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-shrink: 0;
+  min-width: 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 0;
+}
+
 .panel-header > div:first-child {
   min-width: 0;
   flex: 1;
@@ -782,10 +794,11 @@
 }
 
 .modal-large {
-  width: min(600px, 90vw);
-  max-height: 85vh;
+  width: min(700px, 90vw);
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-large .chat-feed-full {
@@ -808,6 +821,29 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+  padding-right: 0.5rem;
+  margin-right: -0.5rem;
+}
+
+.modal-form::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-form::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-form::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 3px;
+}
+
+.modal-form::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 .modal-form label {
@@ -852,6 +888,9 @@
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-soft);
+  flex-shrink: 0;
 }
 
 .filter-drawer {
