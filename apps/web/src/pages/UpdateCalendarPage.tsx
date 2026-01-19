@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAppData } from '../context/AppDataContext'
 import { useAuth } from '../context/AuthContext'
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, updateDoc } from 'firebase/firestore'
+import './UpdateCalendarPage.css'
 
 type Assignee = {
   name: string
@@ -321,31 +322,19 @@ export function UpdateCalendarPage() {
                   userProfile?.role === 'DepartmentHead'
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <header style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+    <div className="calendar-page">
+      <header className="calendar-header">
+        <div className="calendar-header-content">
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 600, margin: 0, marginBottom: '0.5rem' }}>
-              Update Calendar
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
-              Track monthly update deadlines and task assignments across departments
-            </p>
+            <h1>Update Calendar</h1>
+            <p>Track monthly update deadlines and task assignments across departments</p>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontWeight: 500 }}>Year:</span>
+          <div className="calendar-year-selector">
+            <label>
+              <span>Year:</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.375rem',
-                  border: '1px solid var(--border-soft)',
-                  background: 'var(--surface-default)',
-                  color: 'var(--text-primary)',
-                  fontSize: '1rem',
-                }}
               >
                 {Array.from({ length: 5 }, (_, i) => currentYear - 1 + i).map((year) => (
                   <option key={year} value={year}>
@@ -358,14 +347,7 @@ export function UpdateCalendarPage() {
         </div>
       </header>
 
-      {/* Calendar Grid - 12 Month Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '1.5rem',
-        }}
-      >
+      <div className="calendar-grid">
         {MONTHS.map((month, index) => {
           const monthKey = `${month}-${selectedYear}`
           const monthUpdates = updatesByMonth[monthKey] || []
@@ -375,63 +357,32 @@ export function UpdateCalendarPage() {
           return (
             <div
               key={month}
-              className="panel"
-              style={{
-                minHeight: '280px',
-                display: 'flex',
-                flexDirection: 'column',
-                opacity: isPastMonth ? 0.7 : 1,
-              }}
+              className={`calendar-month-card panel ${isPastMonth ? 'calendar-month-past' : ''}`}
             >
-              <header
-                className="panel-header"
-                style={{
-                  borderBottom: '1px solid var(--border-soft)',
-                  paddingBottom: '0.75rem',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
-                      {month}
-                    </h3>
-                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                      {monthUpdates.length} {monthUpdates.length === 1 ? 'update' : 'updates'}
-                    </p>
-                  </div>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenCreate(month)}
-                      style={{
-                        padding: '0.5rem 0.875rem',
-                        borderRadius: '0.375rem',
-                        border: 'none',
-                        background: 'var(--accent)',
-                        color: 'white',
-                        fontSize: '0.875rem',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = 'var(--accent-strong)')}
-                      onMouseOut={(e) => (e.currentTarget.style.background = 'var(--accent)')}
-                    >
-                      + Add
-                    </button>
-                  )}
+              <header className="panel-header">
+                <div>
+                  <h3>{month}</h3>
+                  <p>{monthUpdates.length} {monthUpdates.length === 1 ? 'update' : 'updates'}</p>
                 </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="primary-button calendar-add-button"
+                    onClick={() => handleOpenCreate(month)}
+                  >
+                    + Add
+                  </button>
+                )}
               </header>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+              <div className="calendar-month-content">
                 {monthUpdates.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem 0' }}>
+                  <div className="calendar-empty-state">
                     <p>No updates scheduled</p>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div className="calendar-updates-list">
                     {(() => {
-                      const monthKey = `${month}-${selectedYear}`
                       const isExpanded = expandedMonths.has(monthKey)
                       const displayUpdates = isExpanded ? monthUpdates : monthUpdates.slice(0, 3)
                       const hasMore = monthUpdates.length > 3
@@ -439,7 +390,7 @@ export function UpdateCalendarPage() {
                       return (
                         <>
                           {displayUpdates.map((update) => {
-                            // Get the earliest deadline for display (either from departmentDeadlines or legacy deadline)
+                            // Get the earliest deadline for display
                             const getEarliestDeadline = () => {
                               if (update.departmentDeadlines && Object.keys(update.departmentDeadlines).length > 0) {
                                 const deadlines = Object.values(update.departmentDeadlines).map(d => new Date(d))
@@ -464,36 +415,15 @@ export function UpdateCalendarPage() {
                             return (
                               <div
                                 key={update.id}
-                                style={{
-                                  padding: '1rem',
-                                  borderRadius: '0.5rem',
-                                  border: `2px solid ${isOverdue ? '#fca5a5' : 'var(--border-soft)'}`,
-                                  background: isOverdue ? 'rgba(252, 165, 165, 0.1)' : 'var(--surface-elevated)',
-                                }}
+                                className={`calendar-update-card ${isOverdue ? 'calendar-update-overdue' : ''}`}
                               >
-                                {/* Deadline Header - Prominent */}
-                                <div
-                                  style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    marginBottom: '0.75rem',
-                                    paddingBottom: '0.5rem',
-                                    borderBottom: `1px solid ${isOverdue ? '#fca5a5' : 'var(--border-soft)'}`,
-                                  }}
-                                >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span style={{ fontSize: '1.25rem', fontWeight: 700 }}>📅</span>
+                                <div className="calendar-update-header">
+                                  <div className="calendar-deadline-display">
+                                    <span className="calendar-deadline-icon">📅</span>
                                     <div>
                                       {earliestDeadline ? (
                                         <>
-                                          <div
-                                            style={{
-                                              fontSize: '0.875rem',
-                                              fontWeight: 700,
-                                              color: isOverdue ? '#dc2626' : 'var(--text-primary)',
-                                            }}
-                                          >
+                                          <div className={`calendar-deadline-date ${isOverdue ? 'calendar-deadline-overdue' : ''}`}>
                                             {earliestDeadline.toLocaleDateString('en-US', {
                                               month: 'short',
                                               day: 'numeric',
@@ -506,93 +436,33 @@ export function UpdateCalendarPage() {
                                             })}
                                           </div>
                                           {isOverdue && (
-                                            <div style={{ fontSize: '0.7rem', color: '#dc2626', fontWeight: 600 }}>
-                                              OVERDUE
-                                            </div>
+                                            <div className="calendar-overdue-badge">OVERDUE</div>
                                           )}
                                         </>
                                       ) : (
-                                        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                                          No deadline set
-                                        </div>
+                                        <div className="calendar-no-deadline">No deadline set</div>
                                       )}
                                     </div>
                                   </div>
                                   {canEdit && (
                                     <button
                                       type="button"
+                                      className="calendar-delete-button"
                                       onClick={() => handleDelete(update.id)}
-                                      style={{
-                                        padding: '0.375rem 0.75rem',
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: 'var(--text-muted)',
-                                        fontSize: '0.75rem',
-                                        cursor: 'pointer',
-                                        borderRadius: '0.25rem',
-                                        fontWeight: 500,
-                                      }}
-                                      onMouseOver={(e) => {
-                                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
-                                        e.currentTarget.style.color = '#dc2626'
-                                      }}
-                                      onMouseOut={(e) => {
-                                        e.currentTarget.style.background = 'transparent'
-                                        e.currentTarget.style.color = 'var(--text-muted)'
-                                      }}
                                     >
                                       🗑 Delete
                                     </button>
                                   )}
                                 </div>
 
-                                {/* Task Details */}
-                                <div style={{ marginBottom: '0.75rem' }}>
-                                  <div
-                                    style={{
-                                      fontSize: '0.7rem',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.05em',
-                                      color: 'var(--text-muted)',
-                                      marginBottom: '0.35rem',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    Task Details
-                                  </div>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: '0.875rem',
-                                      color: 'var(--text-primary)',
-                                      lineHeight: 1.5,
-                                    }}
-                                  >
-                                    {update.taskDetails}
-                                  </p>
+                                <div className="calendar-task-details">
+                                  <div className="section-label">Task Details</div>
+                                  <p>{update.taskDetails}</p>
                                 </div>
 
-                                {/* Assignees by Department - Table Style with Deadlines */}
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: '0.7rem',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.05em',
-                                      color: 'var(--text-muted)',
-                                      marginBottom: '0.5rem',
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    Assigned To & Deadlines
-                                  </div>
-                                  <div
-                                    style={{
-                                      border: '1px solid var(--border-soft)',
-                                      borderRadius: '0.375rem',
-                                      overflow: 'hidden',
-                                    }}
-                                  >
+                                <div className="calendar-departments-section">
+                                  <div className="section-label">Assigned To & Deadlines</div>
+                                  <div className="calendar-departments-table">
                                     {Object.entries(assigneesByDept).map(([dept, assignees], idx) => {
                                       const deptDeadline = update.departmentDeadlines?.[dept] 
                                         ? new Date(update.departmentDeadlines[dept])
@@ -604,37 +474,10 @@ export function UpdateCalendarPage() {
                                       return (
                                         <div
                                           key={dept}
-                                          style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '140px 1fr auto',
-                                            borderTop: idx > 0 ? '1px solid var(--border-soft)' : 'none',
-                                            background: idx % 2 === 0 ? 'var(--surface-default)' : 'var(--surface-subtle)',
-                                          }}
+                                          className={`calendar-dept-row ${idx % 2 === 0 ? 'calendar-dept-row-even' : 'calendar-dept-row-odd'}`}
                                         >
-                                          <div
-                                            style={{
-                                              padding: '0.5rem 0.75rem',
-                                              fontWeight: 600,
-                                              fontSize: '0.75rem',
-                                              color: 'var(--accent)',
-                                              borderRight: '1px solid var(--border-soft)',
-                                              display: 'flex',
-                                              alignItems: 'center',
-                                            }}
-                                          >
-                                            {dept}
-                                          </div>
-                                          <div
-                                            style={{
-                                              padding: '0.5rem 0.75rem',
-                                              fontSize: '0.75rem',
-                                              color: 'var(--text-secondary)',
-                                              display: 'flex',
-                                              flexWrap: 'wrap',
-                                              gap: '0.375rem',
-                                              alignItems: 'center',
-                                            }}
-                                          >
+                                          <div className="calendar-dept-name">{dept}</div>
+                                          <div className="calendar-dept-assignees">
                                             {assignees.map((assignee, aIdx) => (
                                               <span key={assignee.id}>
                                                 {assignee.name}
@@ -642,21 +485,9 @@ export function UpdateCalendarPage() {
                                               </span>
                                             ))}
                                           </div>
-                                          <div
-                                            style={{
-                                              padding: '0.5rem 0.75rem',
-                                              fontSize: '0.7rem',
-                                              color: isDeptOverdue ? '#dc2626' : 'var(--text-secondary)',
-                                              display: 'flex',
-                                              flexDirection: 'column',
-                                              alignItems: 'flex-end',
-                                              gap: '0.25rem',
-                                              borderLeft: '1px solid var(--border-soft)',
-                                              minWidth: '120px',
-                                            }}
-                                          >
+                                          <div className={`calendar-dept-deadline ${isDeptOverdue ? 'calendar-dept-deadline-overdue' : ''}`}>
                                             {isEditing ? (
-                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%' }}>
+                                              <div className="calendar-deadline-editor">
                                                 <input
                                                   type="date"
                                                   value={departmentDeadlines[dept]?.date || ''}
@@ -664,13 +495,6 @@ export function UpdateCalendarPage() {
                                                     ...departmentDeadlines,
                                                     [dept]: { ...departmentDeadlines[dept], date: e.target.value, time: departmentDeadlines[dept]?.time || '17:00' }
                                                   })}
-                                                  style={{
-                                                    padding: '0.25rem',
-                                                    fontSize: '0.7rem',
-                                                    border: '1px solid var(--border-soft)',
-                                                    borderRadius: '0.25rem',
-                                                    width: '100%',
-                                                  }}
                                                 />
                                                 <input
                                                   type="time"
@@ -679,42 +503,16 @@ export function UpdateCalendarPage() {
                                                     ...departmentDeadlines,
                                                     [dept]: { ...departmentDeadlines[dept], date: departmentDeadlines[dept]?.date || '', time: e.target.value }
                                                   })}
-                                                  style={{
-                                                    padding: '0.25rem',
-                                                    fontSize: '0.7rem',
-                                                    border: '1px solid var(--border-soft)',
-                                                    borderRadius: '0.25rem',
-                                                    width: '100%',
-                                                  }}
                                                 />
                                                 {error && editingDeadline?.updateId === update.id && editingDeadline?.department === dept && (
-                                                  <div style={{
-                                                    fontSize: '0.65rem',
-                                                    color: '#dc2626',
-                                                    padding: '0.25rem',
-                                                    background: 'rgba(220, 38, 38, 0.1)',
-                                                    borderRadius: '0.25rem',
-                                                    width: '100%',
-                                                  }}>
-                                                    {error}
-                                                  </div>
+                                                  <div className="calendar-deadline-error">{error}</div>
                                                 )}
-                                                <div style={{ display: 'flex', gap: '0.25rem', width: '100%' }}>
+                                                <div className="calendar-deadline-actions">
                                                   <button
                                                     type="button"
                                                     onClick={() => handleUpdateDeadline(update.id, dept)}
                                                     disabled={isSubmitting}
-                                                    style={{
-                                                      flex: 1,
-                                                      padding: '0.25rem 0.5rem',
-                                                      fontSize: '0.65rem',
-                                                      background: 'var(--accent)',
-                                                      color: 'white',
-                                                      border: 'none',
-                                                      borderRadius: '0.25rem',
-                                                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                                                      opacity: isSubmitting ? 0.6 : 1,
-                                                    }}
+                                                    className="primary-button calendar-save-button"
                                                   >
                                                     Save
                                                   </button>
@@ -722,16 +520,7 @@ export function UpdateCalendarPage() {
                                                     type="button"
                                                     onClick={handleCloseEditDeadline}
                                                     disabled={isSubmitting}
-                                                    style={{
-                                                      flex: 1,
-                                                      padding: '0.25rem 0.5rem',
-                                                      fontSize: '0.65rem',
-                                                      background: 'transparent',
-                                                      color: 'var(--text-muted)',
-                                                      border: '1px solid var(--border-soft)',
-                                                      borderRadius: '0.25rem',
-                                                      cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                                                    }}
+                                                    className="ghost-button calendar-cancel-button"
                                                   >
                                                     Cancel
                                                   </button>
@@ -741,50 +530,30 @@ export function UpdateCalendarPage() {
                                               <>
                                                 {deptDeadline ? (
                                                   <>
-                                                    <div style={{ fontWeight: 600 }}>
+                                                    <div className="calendar-dept-deadline-date">
                                                       {deptDeadline.toLocaleDateString('en-US', {
                                                         month: 'short',
                                                         day: 'numeric',
                                                       })}
                                                     </div>
-                                                    <div style={{ fontSize: '0.65rem' }}>
+                                                    <div className="calendar-dept-deadline-time">
                                                       {deptDeadline.toLocaleTimeString('en-US', {
                                                         hour: 'numeric',
                                                         minute: '2-digit',
                                                       })}
                                                     </div>
                                                     {isDeptOverdue && (
-                                                      <div style={{ fontSize: '0.6rem', color: '#dc2626', fontWeight: 600 }}>
-                                                        OVERDUE
-                                                      </div>
+                                                      <div className="calendar-dept-overdue-badge">OVERDUE</div>
                                                     )}
                                                   </>
                                                 ) : (
-                                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                                                    No deadline
-                                                  </div>
+                                                  <div className="calendar-dept-no-deadline">No deadline</div>
                                                 )}
                                                 {canEdit && (
                                                   <button
                                                     type="button"
                                                     onClick={() => handleOpenEditDeadline(update.id, dept, update.departmentDeadlines?.[dept] || update.deadline)}
-                                                    style={{
-                                                      marginTop: '0.25rem',
-                                                      padding: '0.25rem 0.5rem',
-                                                      fontSize: '0.65rem',
-                                                      background: 'transparent',
-                                                      color: 'var(--accent)',
-                                                      border: '1px solid var(--accent)',
-                                                      borderRadius: '0.25rem',
-                                                      cursor: 'pointer',
-                                                      fontWeight: 500,
-                                                    }}
-                                                    onMouseOver={(e) => {
-                                                      e.currentTarget.style.background = 'var(--accent-soft)'
-                                                    }}
-                                                    onMouseOut={(e) => {
-                                                      e.currentTarget.style.background = 'transparent'
-                                                    }}
+                                                    className="calendar-edit-deadline-button"
                                                   >
                                                     {deptDeadline ? 'Edit' : 'Set'}
                                                   </button>
@@ -801,31 +570,11 @@ export function UpdateCalendarPage() {
                             )
                           })}
                           
-                          {/* Show More/Less Button */}
                           {hasMore && (
                             <button
                               type="button"
                               onClick={() => toggleMonthExpanded(monthKey)}
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px dashed var(--border-soft)',
-                                background: 'transparent',
-                                color: 'var(--accent)',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                borderRadius: '0.375rem',
-                                transition: 'all 0.2s',
-                              }}
-                              onMouseOver={(e) => {
-                                e.currentTarget.style.background = 'var(--accent-soft)'
-                                e.currentTarget.style.borderStyle = 'solid'
-                              }}
-                              onMouseOut={(e) => {
-                                e.currentTarget.style.background = 'transparent'
-                                e.currentTarget.style.borderStyle = 'dashed'
-                              }}
+                              className="calendar-show-more-button"
                             >
                               {isExpanded
                                 ? '▲ Show Less'
@@ -846,7 +595,7 @@ export function UpdateCalendarPage() {
       {/* Create Update Modal */}
       {isCreateOpen && (
         <div className="modal-backdrop" role="presentation">
-          <div className="modal" role="dialog" aria-modal="true">
+          <div className="modal modal-large" role="dialog" aria-modal="true">
             <header className="modal-header">
               <div>
                 <h2>Add Update for {selectedMonth}</h2>
@@ -873,64 +622,30 @@ export function UpdateCalendarPage() {
               </label>
 
               <div>
-                <label style={{ marginBottom: '0.5rem' }}>
+                <label className="calendar-assignees-label">
                   <span>Assignees ({selectedAssignees.length})</span>
                 </label>
                 
-                {/* Selected Assignees */}
                 {selectedAssignees.length > 0 && (
-                  <div
-                    style={{
-                      marginBottom: '0.75rem',
-                      padding: '0.75rem',
-                      border: '1px solid var(--border-soft)',
-                      borderRadius: '0.5rem',
-                      background: 'var(--surface-subtle)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {selectedAssignees.map((assignee) => (
-                        <div
-                          key={assignee.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '0.5rem',
-                            background: 'var(--surface-default)',
-                            borderRadius: '0.375rem',
-                            fontSize: '0.875rem',
-                          }}
-                        >
-                          <div>
-                            <strong>{assignee.name}</strong>
-                            <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                              ({assignee.department})
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeAssignee(assignee.id)}
-                            style={{
-                              padding: '0.25rem 0.5rem',
-                              border: 'none',
-                              background: 'rgba(239, 68, 68, 0.1)',
-                              color: '#dc2626',
-                              fontSize: '0.75rem',
-                              cursor: 'pointer',
-                              borderRadius: '0.25rem',
-                              fontWeight: 500,
-                            }}
-                          >
-                            Remove
-                          </button>
+                  <div className="calendar-selected-assignees">
+                    {selectedAssignees.map((assignee) => (
+                      <div key={assignee.id} className="calendar-assignee-item">
+                        <div>
+                          <strong>{assignee.name}</strong>
+                          <span className="calendar-assignee-dept">({assignee.department})</span>
                         </div>
-                      ))}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAssignee(assignee.id)}
+                          className="calendar-remove-assignee-button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Add Assignee Dropdown */}
                 <select
                   value=""
                   onChange={(e) => {
@@ -939,15 +654,7 @@ export function UpdateCalendarPage() {
                       addAssignee(profile)
                     }
                   }}
-                  style={{
-                    width: '100%',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--border-soft)',
-                    background: 'var(--surface-subtle)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.9rem',
-                  }}
+                  className="calendar-assignee-select"
                 >
                   <option value="">+ Add assignee...</option>
                   {allUserProfiles
@@ -960,7 +667,7 @@ export function UpdateCalendarPage() {
                 </select>
                 
                 {selectedAssignees.length === 0 && (
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                  <small className="calendar-assignees-hint">
                     Add at least one assignee to this update
                   </small>
                 )}
@@ -969,17 +676,10 @@ export function UpdateCalendarPage() {
               {/* Department Deadlines Section */}
               {selectedAssignees.length > 0 && (
                 <div>
-                  <label style={{ marginBottom: '0.5rem' }}>
+                  <label className="calendar-deadlines-label">
                     <span>Department Deadlines</span>
                   </label>
-                  <div
-                    style={{
-                      border: '1px solid var(--border-soft)',
-                      borderRadius: '0.5rem',
-                      overflow: 'hidden',
-                      background: 'var(--surface-subtle)',
-                    }}
-                  >
+                  <div className="calendar-deadlines-table">
                     {[...new Set(selectedAssignees.map(a => a.department))].map((dept, idx) => {
                       const defaultDate = new Date()
                       defaultDate.setDate(defaultDate.getDate() + 7) // Default to 7 days from now
@@ -989,81 +689,43 @@ export function UpdateCalendarPage() {
                       return (
                         <div
                           key={dept}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '140px 1fr 1fr',
-                            gap: '0.75rem',
-                            padding: '0.75rem',
-                            borderTop: idx > 0 ? '1px solid var(--border-soft)' : 'none',
-                            background: idx % 2 === 0 ? 'var(--surface-default)' : 'var(--surface-subtle)',
-                            alignItems: 'center',
-                          }}
+                          className={`calendar-deadline-row ${idx % 2 === 0 ? 'calendar-deadline-row-even' : 'calendar-deadline-row-odd'}`}
                         >
-                          <div
-                            style={{
-                              fontWeight: 600,
-                              fontSize: '0.875rem',
-                              color: 'var(--accent)',
-                            }}
-                          >
-                            {dept}
+                          <div className="calendar-deadline-dept-name">{dept}</div>
+                          <div>
+                            <label>
+                              <span>Date</span>
+                              <input
+                                name={`deadline-date-${dept}`}
+                                type="date"
+                                defaultValue={defaultDateStr}
+                                required
+                              />
+                            </label>
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Date
+                            <label>
+                              <span>Time</span>
+                              <input
+                                name={`deadline-time-${dept}`}
+                                type="time"
+                                defaultValue={defaultTimeStr}
+                                required
+                              />
                             </label>
-                            <input
-                              name={`deadline-date-${dept}`}
-                              type="date"
-                              defaultValue={defaultDateStr}
-                              required
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid var(--border-soft)',
-                                borderRadius: '0.375rem',
-                                fontSize: '0.875rem',
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              Time
-                            </label>
-                            <input
-                              name={`deadline-time-${dept}`}
-                              type="time"
-                              defaultValue={defaultTimeStr}
-                              required
-                              style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                border: '1px solid var(--border-soft)',
-                                borderRadius: '0.375rem',
-                                fontSize: '0.875rem',
-                              }}
-                            />
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                  <small className="calendar-deadlines-hint">
                     Set a deadline date and time for each department. Deadlines can be edited later if needed.
                   </small>
                 </div>
               )}
 
               {error && (
-                <div
-                  style={{
-                    padding: '1rem',
-                    background: '#fee',
-                    border: '1px solid #fcc',
-                    borderRadius: '0.5rem',
-                    color: '#c33',
-                  }}
-                >
+                <div className="calendar-form-error">
                   <strong>Error:</strong> {error}
                 </div>
               )}

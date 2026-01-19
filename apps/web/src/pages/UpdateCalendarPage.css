@@ -1,0 +1,579 @@
+.calendar-page {
+  padding: 0;
+}
+
+.calendar-header {
+  margin-bottom: 2rem;
+}
+
+.calendar-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.calendar-header h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: var(--text-primary);
+}
+
+.calendar-header p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.calendar-year-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.calendar-year-selector label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.calendar-year-selector select {
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-default);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.calendar-year-selector select:hover {
+  border-color: var(--accent);
+}
+
+.calendar-year-selector select:focus {
+  outline: 2px solid var(--accent-subtle);
+  border-color: var(--accent);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.calendar-month-card {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.2s ease;
+}
+
+.calendar-month-past {
+  opacity: 0.7;
+}
+
+.calendar-add-button {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.calendar-month-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+  margin-top: 1rem;
+}
+
+.calendar-empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem 0;
+}
+
+.calendar-empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.calendar-updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-update-card {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-elevated);
+  transition: all 0.2s ease;
+}
+
+.calendar-update-overdue {
+  border-color: #fca5a5;
+  background: rgba(252, 165, 165, 0.08);
+}
+
+.calendar-update-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.calendar-update-overdue .calendar-update-header {
+  border-bottom-color: #fca5a5;
+}
+
+.calendar-deadline-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-deadline-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.calendar-deadline-date {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.calendar-deadline-overdue {
+  color: #dc2626;
+}
+
+.calendar-overdue-badge {
+  font-size: 0.7rem;
+  color: #dc2626;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+.calendar-no-deadline {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.calendar-delete-button {
+  padding: 0.375rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.calendar-delete-button:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.calendar-task-details {
+  margin-bottom: 0.75rem;
+}
+
+.calendar-task-details p {
+  margin: 0.35rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.calendar-departments-section {
+  margin-top: 0.75rem;
+}
+
+.calendar-departments-table {
+  border: 1px solid var(--border-soft);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.calendar-dept-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  border-top: 1px solid var(--border-soft);
+  transition: background 0.2s ease;
+}
+
+.calendar-dept-row:first-child {
+  border-top: none;
+}
+
+.calendar-dept-row-even {
+  background: var(--surface-default);
+}
+
+.calendar-dept-row-odd {
+  background: var(--surface-subtle);
+}
+
+.calendar-dept-name {
+  padding: 0.75rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--accent);
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+}
+
+.calendar-dept-assignees {
+  padding: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.calendar-dept-deadline {
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  border-left: 1px solid var(--border-soft);
+  min-width: 140px;
+}
+
+.calendar-dept-deadline-overdue {
+  color: #dc2626;
+}
+
+.calendar-dept-deadline-date {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.calendar-dept-deadline-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.calendar-dept-overdue-badge {
+  font-size: 0.65rem;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.calendar-dept-no-deadline {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.calendar-edit-deadline-button {
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.calendar-edit-deadline-button:hover {
+  background: var(--accent-soft);
+}
+
+.calendar-deadline-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.calendar-deadline-editor input {
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.5rem;
+  background: var(--surface-default);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.calendar-deadline-editor input:focus {
+  outline: 2px solid var(--accent-subtle);
+  border-color: var(--accent);
+}
+
+.calendar-deadline-error {
+  font-size: 0.7rem;
+  color: #dc2626;
+  padding: 0.5rem;
+  background: rgba(220, 38, 38, 0.1);
+  border-radius: 0.5rem;
+  width: 100%;
+}
+
+.calendar-deadline-actions {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.calendar-save-button {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.calendar-cancel-button {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.calendar-show-more-button {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px dashed var(--border-soft);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.calendar-show-more-button:hover {
+  background: var(--accent-soft);
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+/* Modal Styles */
+.calendar-assignees-label,
+.calendar-deadlines-label {
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.calendar-selected-assignees {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.calendar-assignee-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--surface-default);
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.calendar-assignee-dept {
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
+
+.calendar-remove-assignee-button {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+.calendar-remove-assignee-button:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.calendar-assignee-select {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.calendar-assignee-select:focus {
+  outline: 2px solid var(--accent-subtle);
+  background: var(--surface-default);
+  border-color: var(--accent);
+}
+
+.calendar-assignees-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.calendar-deadlines-table {
+  border: 1px solid var(--border-soft);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: var(--surface-subtle);
+  margin-top: 0.5rem;
+}
+
+.calendar-deadline-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--border-soft);
+  align-items: center;
+}
+
+.calendar-deadline-row:first-child {
+  border-top: none;
+}
+
+.calendar-deadline-row-even {
+  background: var(--surface-default);
+}
+
+.calendar-deadline-row-odd {
+  background: var(--surface-subtle);
+}
+
+.calendar-deadline-dept-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--accent);
+}
+
+.calendar-deadline-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.calendar-deadline-row input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background: var(--surface-default);
+  color: var(--text-primary);
+}
+
+.calendar-deadline-row input:focus {
+  outline: 2px solid var(--accent-subtle);
+  border-color: var(--accent);
+}
+
+.calendar-deadlines-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  display: block;
+}
+
+.calendar-form-error {
+  padding: 1rem;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 0.75rem;
+  color: #c33;
+  font-size: 0.875rem;
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+  .calendar-header-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .calendar-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-dept-row {
+    grid-template-columns: 120px 1fr auto;
+    gap: 0.5rem;
+  }
+
+  .calendar-dept-name {
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+
+  .calendar-dept-assignees {
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+
+  .calendar-dept-deadline {
+    min-width: 120px;
+    padding: 0.5rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .calendar-dept-row {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .calendar-dept-name {
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 0.5rem;
+  }
+
+  .calendar-dept-assignees {
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 0.5rem;
+  }
+
+  .calendar-dept-deadline {
+    border-left: none;
+    border-top: 1px solid var(--border-soft);
+    padding-top: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .calendar-deadline-row {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
