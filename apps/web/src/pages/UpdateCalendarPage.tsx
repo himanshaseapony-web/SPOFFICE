@@ -767,9 +767,21 @@ export function UpdateCalendarPage() {
                               return update.deadline ? new Date(update.deadline) : null
                             }
                             
+                            // Get the latest deadline (final delivery date)
+                            const getLatestDeadline = () => {
+                              if (update.departmentDeadlines && Object.keys(update.departmentDeadlines).length > 0) {
+                                const deadlines = Object.values(update.departmentDeadlines).map(d => new Date(d))
+                                return deadlines.sort((a, b) => b.getTime() - a.getTime())[0]
+                              }
+                              return update.deadline ? new Date(update.deadline) : null
+                            }
+                            
                             const earliestDeadline = getEarliestDeadline()
+                            const latestDeadline = getLatestDeadline()
                             const isOverdue = earliestDeadline && earliestDeadline < new Date() && 
                                             earliestDeadline.toDateString() !== new Date().toDateString()
+                            const isFinalOverdue = latestDeadline && latestDeadline < new Date() && 
+                                                  latestDeadline.toDateString() !== new Date().toDateString()
                             
                             // Group assignees by department
                             const assigneesByDept = update.assignees.reduce((acc, assignee) => {
@@ -787,26 +799,27 @@ export function UpdateCalendarPage() {
                               >
                                 <div className="calendar-update-header">
                                   <div className="calendar-deadline-display">
-                                    <span className="calendar-deadline-icon">📅</span>
-                                    <div>
-                                      {earliestDeadline ? (
-                                        <>
-                                          <div className={`calendar-deadline-date ${isOverdue ? 'calendar-deadline-overdue' : ''}`}>
-                                            {earliestDeadline.toLocaleDateString('en-US', {
+                                    <div className="calendar-final-delivery">
+                                      <span className="calendar-final-delivery-label">Final Delivery Date:</span>
+                                      {latestDeadline ? (
+                                        <div className={`calendar-final-delivery-date ${isFinalOverdue ? 'calendar-deadline-overdue' : ''}`}>
+                                          <span className="calendar-deadline-icon">📅</span>
+                                          <span>
+                                            {latestDeadline.toLocaleDateString('en-US', {
                                               month: 'short',
                                               day: 'numeric',
                                               year: 'numeric',
                                             })}
                                             {' '}
-                                            {earliestDeadline.toLocaleTimeString('en-US', {
+                                            {latestDeadline.toLocaleTimeString('en-US', {
                                               hour: 'numeric',
                                               minute: '2-digit',
                                             })}
-                                          </div>
-                                          {isOverdue && (
-                                            <div className="calendar-overdue-badge">OVERDUE</div>
+                                          </span>
+                                          {isFinalOverdue && (
+                                            <span className="calendar-overdue-badge">OVERDUE</span>
                                           )}
-                                        </>
+                                        </div>
                                       ) : (
                                         <div className="calendar-no-deadline">No deadline set</div>
                                       )}

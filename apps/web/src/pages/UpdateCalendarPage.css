@@ -149,11 +149,55 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 1;
 }
 
 .calendar-deadline-icon {
   font-size: 1.25rem;
   line-height: 1;
+}
+
+.calendar-final-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.calendar-final-delivery-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.calendar-final-delivery-date {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-subtle);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-soft);
+}
+
+.calendar-final-delivery-date .calendar-deadline-icon {
+  font-size: 1rem;
+}
+
+.calendar-final-delivery-date .calendar-overdue-badge {
+  margin-left: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  background: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+  border-radius: 0.25rem;
+  font-weight: 600;
 }
 
 .calendar-deadline-date {
