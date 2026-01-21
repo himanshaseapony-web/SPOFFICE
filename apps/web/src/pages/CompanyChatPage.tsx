@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { FormEvent } from 'react'
 import { Timestamp, addDoc, collection } from 'firebase/firestore'
 import { useAuth } from '../context/AuthContext'
@@ -19,13 +19,66 @@ export function CompanyChatPage() {
     allUserProfiles, 
     deleteCompanyChatMessage,
     companyChatMessages,
-    markCompanyChatAsRead
+    markCompanyChatAsRead,
+    markCompanyChatMessageAsSeen
   } = useAppData()
+  
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const seenMessagesRef = useRef<Set<string>>(new Set())
 
   // Mark company chat as read when page is visited
   useEffect(() => {
     markCompanyChatAsRead()
   }, [markCompanyChatAsRead])
+
+  // Track visible messages and mark them as seen
+  useEffect(() => {
+    if (!user || !companyChatMessages.length) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id')
+            if (messageId && !seenMessagesRef.current.has(messageId)) {
+              // Only mark as seen if it's not the current user's message
+              const message = companyChatMessages.find((m) => m.id === messageId)
+              if (message && message.authorId !== user.uid) {
+                seenMessagesRef.current.add(messageId)
+                markCompanyChatMessageAsSeen(messageId).catch((error) => {
+                  console.error('Failed to mark message as seen', error)
+                  seenMessagesRef.current.delete(messageId) // Retry on next intersection
+                })
+              }
+            }
+          }
+        })
+      },
+      {
+        root: null,
+        rootMargin: '0px',
+        threshold: 0.5, // Message is considered visible when 50% is in view
+      }
+    )
+
+    // Observe all message elements
+    messageRefs.current.forEach((element) => {
+      observer.observe(element)
+    })
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [user, companyChatMessages, markCompanyChatMessageAsSeen])
+
+  // Set up message refs
+  const setMessageRef = useCallback((messageId: string, element: HTMLDivElement | null) => {
+    if (element) {
+      messageRefs.current.set(messageId, element)
+    } else {
+      messageRefs.current.delete(messageId)
+    }
+  }, [])
 
   const canDeleteMessage = (_messageAuthorId: string): boolean => {
     if (!user || !userProfile) return false
@@ -88,10 +141,25 @@ export function CompanyChatPage() {
           companyChatMessages.map((message) => {
             const messageUser = allUserProfiles.find((p) => p.id === message.authorId)
             const isCurrentUser = message.authorId === user?.uid
+            const seenBy = message.seenBy ?? []
+            // Get unique users who have seen this message (excluding the author)
+            const seenByUsers = seenBy
+              .filter((seen) => seen.userId !== message.authorId)
+              .map((seen) => {
+                const profile = allUserProfiles.find((p) => p.id === seen.userId)
+                return {
+                  userId: seen.userId,
+                  seenAt: seen.seenAt,
+                  profile,
+                }
+              })
+              .filter((seen) => seen.profile) // Only include users with profiles
             
             return (
               <div
                 key={message.id}
+                ref={(el) => setMessageRef(message.id, el)}
+                data-message-id={message.id}
                 className={`imessage-message ${isCurrentUser ? 'imessage-sent' : 'imessage-received'}`}
               >
                 {!isCurrentUser && (
@@ -107,34 +175,68 @@ export function CompanyChatPage() {
                     <div className="imessage-author-name">{message.author}</div>
                   )}
                   <div className="imessage-text">{message.text}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div className="imessage-time">
-                      {message.createdAt.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="imessage-time">
+                        {message.createdAt.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {canDeleteMessage(message.authorId) && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteMessageId(message.id)}
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.25rem 0.5rem',
+                            color: '#dc2626',
+                            background: 'transparent',
+                            border: '1px solid #dc2626',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer',
+                            opacity: 0.7,
+                            transition: 'opacity 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                          title="Delete message"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
-                    {canDeleteMessage(message.authorId) && (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteMessageId(message.id)}
+                    {seenByUsers.length > 0 && (
+                      <div 
                         style={{ 
-                          fontSize: '0.75rem', 
-                          padding: '0.25rem 0.5rem',
-                          color: '#dc2626',
-                          background: 'transparent',
-                          border: '1px solid #dc2626',
-                          borderRadius: '0.25rem',
-                          cursor: 'pointer',
-                          opacity: 0.7,
-                          transition: 'opacity 0.2s'
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '0.25rem',
+                          marginTop: '0.25rem',
+                          flexWrap: 'wrap'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-                        title="Delete message"
+                        title={`Seen by: ${seenByUsers.map((s) => s.profile?.displayName || 'Unknown').join(', ')}`}
                       >
-                        ×
-                      </button>
+                        {seenByUsers.slice(0, 5).map((seen) => (
+                          <Avatar
+                            key={seen.userId}
+                            displayName={seen.profile?.displayName}
+                            email={seen.profile?.email}
+                            profileImageUrl={seen.profile?.profileImageUrl}
+                            size="small"
+                            className="imessage-seen-avatar"
+                          />
+                        ))}
+                        {seenByUsers.length > 5 && (
+                          <span style={{ 
+                            fontSize: '0.7rem', 
+                            color: 'var(--text-muted)',
+                            marginLeft: '0.25rem'
+                          }}>
+                            +{seenByUsers.length - 5}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

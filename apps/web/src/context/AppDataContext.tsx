@@ -20,6 +20,8 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
+  Timestamp,
   where,
   type CollectionReference,
   type DocumentData,
@@ -111,6 +113,10 @@ type AppDataContextValue = {
     role: string
     createdAt: Date
     text: string
+    seenBy?: Array<{
+      userId: string
+      seenAt: Date
+    }>
   }>
   companyChatUnreadCount: number
   markCompanyChatAsRead: () => void
@@ -125,6 +131,7 @@ type AppDataContextValue = {
   deleteTask: (taskId: string) => Promise<void>
   deleteChatMessage: (messageId: string) => Promise<void>
   deleteCompanyChatMessage: (messageId: string) => Promise<void>
+  markCompanyChatMessageAsSeen: (messageId: string) => Promise<void>
 }
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined)
@@ -147,6 +154,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     role: string
     createdAt: Date
     text: string
+    seenBy?: Array<{
+      userId: string
+      seenAt: Date
+    }>
   }>>([])
   const [companyChatUnreadCount, setCompanyChatUnreadCount] = useState(0)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -478,6 +489,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       (snapshot) => {
         const messages = snapshot.docs.map((docSnapshot) => {
           const data = docSnapshot.data()
+          const seenByData = data.seenBy ?? []
           return {
             id: docSnapshot.id,
             author: data.author ?? '',
@@ -485,6 +497,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             role: data.role ?? '',
             createdAt: data.createdAt?.toDate?.() ?? new Date(),
             text: data.text ?? '',
+            seenBy: Array.isArray(seenByData) ? seenByData.map((item: any) => ({
+              userId: item.userId ?? '',
+              seenAt: item.seenAt?.toDate?.() ?? new Date(),
+            })) : undefined,
           }
         })
 
@@ -609,6 +625,45 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     await deleteDoc(messageRef)
   }
 
+  const markCompanyChatMessageAsSeen = async (messageId: string) => {
+    if (!firestore || !user) {
+      return
+    }
+
+    try {
+      const messageRef = doc(firestore, 'companyChats', messageId)
+      const messageSnapshot = await getDoc(messageRef)
+      
+      if (!messageSnapshot.exists()) {
+        return
+      }
+
+      const currentData = messageSnapshot.data()
+      const existingSeenBy = currentData.seenBy ?? []
+      
+      // Check if user has already seen this message
+      const alreadySeen = existingSeenBy.some((item: any) => item.userId === user.uid)
+      
+      if (!alreadySeen) {
+        // Add current user to seenBy array
+        const updatedSeenBy = [
+          ...existingSeenBy,
+          {
+            userId: user.uid,
+            seenAt: Timestamp.now(),
+          },
+        ]
+        
+        await updateDoc(messageRef, {
+          seenBy: updatedSeenBy,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to mark message as seen', error)
+      // Don't throw - this is a non-critical operation
+    }
+  }
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       departments,
@@ -629,6 +684,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       deleteTask,
       deleteChatMessage,
       deleteCompanyChatMessage,
+      markCompanyChatMessageAsSeen,
     }),
     [
       allUserProfiles,

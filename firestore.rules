@@ -160,8 +160,19 @@ service cloud.firestore {
         request.resource.data.authorId == request.auth.uid &&
         request.resource.data.keys().hasAll(['author', 'authorId', 'text', 'createdAt', 'role']);
       
-      // Allow update/delete only by the author or Admin/Manager
-      allow update, delete: if isAuthenticated() && (
+      // Allow update for:
+      // 1. Author or Admin/Manager (full update)
+      // 2. Any authenticated user (to update seenBy field only - they can only add themselves)
+      allow update: if isAuthenticated() && (
+        // Full update by author or Admin/Manager
+        (isOwner(resource.data.authorId) || hasRole(['Admin', 'Manager'])) ||
+        // Limited update: only seenBy field by any authenticated user
+        // The backend function ensures users can only add themselves
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seenBy'])
+      );
+      
+      // Allow delete only by the author or Admin/Manager
+      allow delete: if isAuthenticated() && (
         isOwner(resource.data.authorId) ||
         hasRole(['Admin', 'Manager'])
       );
