@@ -32,7 +32,16 @@ export default function LoginPage() {
     <div className="login-shell">
       <div className="login-panel">
         <header>
-          <span className="brand-mark" aria-hidden />
+          <img 
+            src="/sea-pony-logo.png" 
+            alt="Sea Pony Studios" 
+            className="brand-logo"
+            onError={(e) => {
+              console.error('Logo failed to load:', e)
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+            }}
+          />
           <h1>SP Office</h1>
           <p>Sign in to manage tasks across Programming, 3D Design, and UI/UX.</p>
         </header>

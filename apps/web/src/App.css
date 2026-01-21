@@ -38,6 +38,13 @@
   display: inline-block;
 }
 
+.brand-logo {
+  height: 2.5rem;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .brand-name {
   font-size: 1.05rem;
 }
@@ -1260,6 +1267,14 @@
   flex-direction: column;
   gap: 1.5rem;
   text-align: center;
+}
+
+.login-panel header .brand-logo {
+  height: 3.5rem;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 .login-panel header h1 {

@@ -30,7 +30,16 @@ export function Topbar({ pageTitle, onCreateTask }: TopbarProps) {
   return (
     <header className="topbar">
       <div className="brand">
-        <span className="brand-mark" aria-hidden />
+        <img 
+          src="/sea-pony-logo.png" 
+          alt="Sea Pony Studios" 
+          className="brand-logo"
+          onError={(e) => {
+            console.error('Logo failed to load:', e)
+            const target = e.target as HTMLImageElement
+            target.style.display = 'none'
+          }}
+        />
         <div className="brand-stack">
           <span className="brand-name">SP Office</span>
           <span className="brand-subtitle">{pageTitle}</span>
