@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { resetAllKPIPoints } from '../lib/kpi'
 
 export function KPIPointsPage() {
-  const { kpiPoints, allUserProfiles, departments, firestore, userProfile } = useAppData()
+  const { kpiPoints, allUserProfiles, firestore, userProfile } = useAppData()
   const { user } = useAuth()
   const [isResetting, setIsResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
