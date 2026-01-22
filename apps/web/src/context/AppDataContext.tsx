@@ -101,6 +101,14 @@ export type DailyWorkUpdate = {
   }>
 }
 
+export type KPIPoint = {
+  id: string
+  userId: string
+  userName: string
+  points: number
+  lastUpdated: string
+}
+
 type AppDataContextValue = {
   departments: Department[]
   tasks: Task[]
@@ -122,6 +130,7 @@ type AppDataContextValue = {
   markCompanyChatAsRead: () => void
   userProfile: UserProfile | null
   allUserProfiles: UserProfile[]
+  kpiPoints: KPIPoint[]
   loading: boolean
   firestore: Firestore | null
   dataError: Error | null
@@ -162,6 +171,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [companyChatUnreadCount, setCompanyChatUnreadCount] = useState(0)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [allUserProfiles, setAllUserProfiles] = useState<UserProfile[]>([])
+  const [kpiPoints, setKpiPoints] = useState<KPIPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [firestore, setFirestore] = useState<Firestore | null>(null)
   const [dataError, setDataError] = useState<Error | null>(null)
@@ -558,6 +568,39 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }, [firestore, user])
 
+  // Load KPI points (for Managers and Admins)
+  useEffect(() => {
+    if (!firestore || !user) {
+      setKpiPoints([])
+      return () => {}
+    }
+
+    const kpiPointsRef = collection(firestore, 'kpiPoints')
+    const unsubscribe = onSnapshot(
+      kpiPointsRef,
+      (snapshot) => {
+        const points = snapshot.docs.map((docSnapshot) => {
+          const data = docSnapshot.data()
+          return {
+            id: docSnapshot.id,
+            userId: data.userId ?? docSnapshot.id,
+            userName: data.userName ?? '',
+            points: data.points ?? 0,
+            lastUpdated: data.lastUpdated ?? '',
+          } satisfies KPIPoint
+        })
+        // Sort by points descending
+        points.sort((a, b) => b.points - a.points)
+        setKpiPoints(points)
+      },
+      (error) => {
+        console.error('Failed to load KPI points', error)
+      }
+    )
+
+    return () => unsubscribe()
+  }, [firestore, user])
+
   // Function to mark company chat as read
   const markCompanyChatAsRead = useCallback(() => {
     if (!user) return
@@ -675,6 +718,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       markCompanyChatAsRead,
       userProfile,
       allUserProfiles,
+      kpiPoints,
       loading,
       firestore,
       dataError,
@@ -696,6 +740,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       firestore,
       filteredTasks,
       filters,
+      kpiPoints,
       loading,
       tasks,
       userProfile,

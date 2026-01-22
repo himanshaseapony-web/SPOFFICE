@@ -13,6 +13,7 @@ export const navItems: NavItem[] = [
   { label: 'In Progress', path: '/in-progress', allowedRoles: ['Admin', 'Manager'] },
   { label: 'Departments', path: '/departments', allowedRoles: ['Admin', 'Manager', 'DepartmentHead'] },
   { label: 'Reports', path: '/reports', allowedRoles: ['Admin', 'Manager', 'DepartmentHead'] },
+  { label: 'KPI Points', path: '/kpi-points', allowedRoles: ['Admin', 'Manager'] },
   { label: 'Automation', path: '/automation', allowedRoles: ['Admin'] },
   { label: 'Settings', path: '/settings' },
 ]

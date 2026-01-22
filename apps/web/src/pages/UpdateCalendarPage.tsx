@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { collection, addDoc, deleteDoc, doc, onSnapshot, query, Timestamp, updateDoc, where, getDocs } from 'firebase/firestore'
 import { StatusSelector, type DepartmentStatus } from '../components/StatusSelector'
 import { playNotificationSound, showDesktopNotification } from '../lib/notifications'
+import { awardKPIPoints, removeKPIPoints } from '../lib/kpi'
 import './UpdateCalendarPage.css'
 
 type Assignee = {
@@ -334,10 +335,16 @@ export function UpdateCalendarPage() {
 
   const handleDelete = async (updateId: string) => {
     if (!firestore) return
-    if (!confirm('Are you sure you want to delete this update?')) return
+    if (!confirm('Are you sure you want to delete this update? Any KPI points awarded for this update will be removed.')) return
 
     try {
+      // First, remove any KPI points awarded for this update
+      await removeKPIPoints(firestore, updateId)
+      
+      // Then delete the calendar update
       await deleteDoc(doc(firestore, 'calendarUpdates', updateId))
+      
+      console.log(`✅ Successfully deleted update ${updateId} and removed associated KPI points`)
     } catch (err) {
       console.error('Failed to delete update:', err)
       alert('Failed to delete update. Please try again.')
@@ -585,6 +592,29 @@ export function UpdateCalendarPage() {
               reviewedAt: Timestamp.now(),
             })
           })
+
+          // Award KPI points to all assignees in this department
+          const departmentAssignees = currentUpdate.assignees.filter(
+            (assignee) => assignee.department === department
+          )
+          
+          if (departmentAssignees.length > 0) {
+            try {
+              await awardKPIPoints(
+                firestore,
+                updateId,
+                department,
+                departmentAssignees.map(a => ({ id: a.id, name: a.name })),
+                currentUpdate.month,
+                currentUpdate.year,
+                currentUpdate.taskDetails
+              )
+              console.log(`✅ KPI points awarded to ${departmentAssignees.length} assignee(s) in ${department}`)
+            } catch (error) {
+              console.error('❌ Failed to award KPI points:', error)
+              // Don't fail the status update if KPI awarding fails
+            }
+          }
         } else if (!canApprove) {
           // Non-managers/admins trying to set to Completed - not allowed
           throw new Error('Only Managers and Admins can approve requests and set status to Completed.')

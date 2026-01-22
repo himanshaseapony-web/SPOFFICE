@@ -10,6 +10,7 @@ import UpdateCalendarPage from './pages/UpdateCalendarPage'
 import InProgressTasksPage from './pages/InProgressTasksPage'
 import DepartmentsPage from './pages/DepartmentsPage'
 import ReportsPage from './pages/ReportsPage'
+import KPIPointsPage from './pages/KPIPointsPage'
 import AutomationPage from './pages/AutomationPage'
 import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
@@ -53,6 +54,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['Admin', 'Manager', 'DepartmentHead']}>
                 <ReportsPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="kpi-points" 
+            element={
+              <ProtectedRoute allowedRoles={['Admin', 'Manager']}>
+                <KPIPointsPage />
               </ProtectedRoute>
             } 
           />
