@@ -32,6 +32,7 @@ import {
 import { getFirebaseApp } from '../lib/firebase'
 import { useAuth } from './AuthContext'
 import { playNotificationSound, showDesktopNotification } from '../lib/notifications'
+import { normalizeDepartment } from '../lib/kpi'
 
 export type Department = {
   id: string
@@ -105,7 +106,14 @@ export type KPIPoint = {
   id: string
   userId: string
   userName: string
+  department: string
   points: number
+  tasksAssigned: number
+  tasksCompletedOnTime: number
+  tasksCompletedLate: number
+  tasksIncomplete: number
+  effectivePoints: number
+  score: number
   lastUpdated: string
 }
 
@@ -581,16 +589,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       (snapshot) => {
         const points = snapshot.docs.map((docSnapshot) => {
           const data = docSnapshot.data()
+          const rawDepartment = data.department ?? 'Unknown'
+          // Normalize department name for display (e.g., "ui" → "UI/UX", "3d design" → "3D Development")
+          const normalizedDept = rawDepartment !== 'Unknown' ? normalizeDepartment(rawDepartment) : 'Unknown'
+          
           return {
             id: docSnapshot.id,
             userId: data.userId ?? docSnapshot.id,
             userName: data.userName ?? '',
+            department: normalizedDept,
             points: data.points ?? 0,
+            tasksAssigned: data.tasksAssigned ?? 0,
+            tasksCompletedOnTime: data.tasksCompletedOnTime ?? 0,
+            tasksCompletedLate: data.tasksCompletedLate ?? 0,
+            tasksIncomplete: data.tasksIncomplete ?? 0,
+            effectivePoints: data.effectivePoints ?? 0,
+            score: data.score ?? 0,
             lastUpdated: data.lastUpdated ?? '',
           } satisfies KPIPoint
         })
-        // Sort by points descending
-        points.sort((a, b) => b.points - a.points)
+        // Sort by score descending (not just points)
+        points.sort((a, b) => b.score - a.score)
         setKpiPoints(points)
       },
       (error) => {

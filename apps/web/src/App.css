@@ -1804,3 +1804,12 @@
   color: var(--accent-strong);
   font-weight: 600;
 }
+
+/* KPI Task Breakdown */
+.kpi-task-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}

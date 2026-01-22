@@ -593,28 +593,8 @@ export function UpdateCalendarPage() {
             })
           })
 
-          // Award KPI points to all assignees in this department
-          const departmentAssignees = currentUpdate.assignees.filter(
-            (assignee) => assignee.department === department
-          )
-          
-          if (departmentAssignees.length > 0) {
-            try {
-              await awardKPIPoints(
-                firestore,
-                updateId,
-                department,
-                departmentAssignees.map(a => ({ id: a.id, name: a.name })),
-                currentUpdate.month,
-                currentUpdate.year,
-                currentUpdate.taskDetails
-              )
-              console.log(`✅ KPI points awarded to ${departmentAssignees.length} assignee(s) in ${department}`)
-            } catch (error) {
-              console.error('❌ Failed to award KPI points:', error)
-              // Don't fail the status update if KPI awarding fails
-            }
-          }
+          // KPI points will be awarded by the centralized "check all departments" logic below
+          // This prevents duplicate awards and ensures all departments are checked consistently
         } else if (!canApprove) {
           // Non-managers/admins trying to set to Completed - not allowed
           throw new Error('Only Managers and Admins can approve requests and set status to Completed.')
@@ -637,6 +617,86 @@ export function UpdateCalendarPage() {
         overallStatus: allComplete ? 'Completed' : 'In Progress',
         updatedAt: Timestamp.now(),
       })
+
+      // ALWAYS check ALL departments and award points to any that are completed
+      // This ensures no department gets missed regardless of approval order
+      console.log(`🔄 Checking all departments for KPI awards (updateId: ${updateId})`)
+      
+      // Group assignees by department
+      const assigneesByDept = currentUpdate.assignees.reduce((acc, assignee) => {
+        if (!acc[assignee.department]) {
+          acc[assignee.department] = []
+        }
+        acc[assignee.department].push(assignee)
+        return acc
+      }, {} as Record<string, Array<{ id: string; name: string; department: string }>>)
+
+      // Before awarding points, check which departments have already been awarded points
+      // This prevents duplicate awards when handleStatusChange is called multiple times
+      // We check if ANY assignee in the department already has points for this update
+      const alreadyAwardedDepts = new Set<string>()
+      
+      // Check history to see which departments already have points awarded
+      const historyCheckPromises = Object.entries(assigneesByDept).map(async ([dept, assignees]) => {
+        const deptStatus = updatedStatuses[dept]?.status
+        if (deptStatus === 'Completed' && assignees.length > 0) {
+          // Check if ANY assignee in this department already has points for this update
+          // If one assignee has points, the whole department was already processed
+          for (const assignee of assignees) {
+            const historyQuery = query(
+              collection(firestore, 'kpiPointHistory'),
+              where('updateId', '==', updateId),
+              where('department', '==', dept),
+              where('userId', '==', assignee.id)
+            )
+            const existingHistory = await getDocs(historyQuery)
+            if (!existingHistory.empty) {
+              alreadyAwardedDepts.add(dept)
+              console.log(`   ⚠️ ${dept}: Points already awarded to ${assignee.name} (found in history), skipping entire department`)
+              break // Found one, no need to check others in this department
+            }
+          }
+        }
+      })
+      await Promise.all(historyCheckPromises)
+
+      // Award KPI points to all departments that are completed AND not already awarded
+      const kpiAwards = Object.entries(assigneesByDept).map(async ([dept, assignees]) => {
+        const deptStatus = updatedStatuses[dept]?.status
+        
+        console.log(`   Checking ${dept}: status="${deptStatus}", assignees=${assignees.length}`)
+        
+        // Only award if department is completed AND not already awarded
+        if (deptStatus === 'Completed' && assignees.length > 0 && !alreadyAwardedDepts.has(dept)) {
+          try {
+            const deptDeadline = currentUpdate.departmentDeadlines?.[dept] || currentUpdate.deadline
+            
+            console.log(`   → Awarding KPI points to ${dept}...`)
+            await awardKPIPoints(
+              firestore,
+              updateId,
+              dept,
+              assignees.map(a => ({ id: a.id, name: a.name })),
+              currentUpdate.month,
+              currentUpdate.year,
+              currentUpdate.taskDetails,
+              deptDeadline
+            )
+            console.log(`   ✅ ${dept}: KPI points processed for ${assignees.length} assignee(s)`)
+          } catch (error) {
+            console.error(`   ❌ ${dept}: Failed to award KPI points:`, error)
+            // Don't fail the status update if KPI awarding fails
+          }
+        } else if (deptStatus !== 'Completed') {
+          console.log(`   ⏭️ ${dept}: Skipped (not completed yet)`)
+        } else if (alreadyAwardedDepts.has(dept)) {
+          console.log(`   ⏭️ ${dept}: Skipped (points already awarded)`)
+        }
+      })
+
+      // Wait for all KPI awards to complete
+      await Promise.all(kpiAwards)
+      console.log(`✅ KPI award check complete for update ${updateId}`)
 
       // If all completed, show notification
       if (allComplete) {

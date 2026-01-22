@@ -9,25 +9,31 @@ export function KPIPointsPage() {
   const [isResetting, setIsResetting] = useState(false)
   const [resetError, setResetError] = useState<string | null>(null)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('Programming')
 
-  // Enrich KPI points with user profile data (department, role)
+  // Only show the three standard departments
+  const departments = useMemo(() => {
+    return ['Programming', '3D Development', 'UI/UX']
+  }, [])
+
+  // Enrich KPI points with user profile data
   const enrichedPoints = useMemo(() => {
     return kpiPoints
       .filter((point) => point.points > 0) // Only include users with points > 0
       .map((point) => {
-        const userProfile = allUserProfiles.find((profile) => profile.id === point.userId)
+        const profile = allUserProfiles.find((p) => p.id === point.userId)
         return {
           ...point,
-          department: userProfile?.department || 'Unknown',
-          role: userProfile?.role || 'Unknown',
-          displayName: userProfile?.displayName || point.userName,
+          role: profile?.role || 'Unknown',
+          displayName: profile?.displayName || point.userName,
         }
       })
   }, [kpiPoints, allUserProfiles])
 
-  // Group by department for department view
+  // Group by department and sort by score
   const pointsByDepartment = useMemo(() => {
     const grouped: Record<string, typeof enrichedPoints> = {}
+    
     enrichedPoints.forEach((point) => {
       const dept = point.department
       if (!grouped[dept]) {
@@ -35,18 +41,30 @@ export function KPIPointsPage() {
       }
       grouped[dept].push(point)
     })
+
+    // Sort each department's users by score descending
+    Object.keys(grouped).forEach(dept => {
+      grouped[dept].sort((a, b) => b.score - a.score)
+    })
+
     return grouped
   }, [enrichedPoints])
 
-  // Calculate total points across all users
-  const totalPoints = useMemo(() => {
-    return enrichedPoints.reduce((sum, point) => sum + point.points, 0)
-  }, [enrichedPoints])
+  // Get current department leaderboard
+  const currentLeaderboard = pointsByDepartment[selectedDepartment] || []
 
-  // Get top performers (top 10)
-  const topPerformers = useMemo(() => {
-    return enrichedPoints.slice(0, 10)
-  }, [enrichedPoints])
+  // Calculate department stats
+  const departmentStats = useMemo(() => {
+    return Object.entries(pointsByDepartment).map(([dept, users]) => ({
+      department: dept,
+      totalUsers: users.length,
+      totalPoints: users.reduce((sum, u) => sum + u.effectivePoints, 0),
+      totalTasks: users.reduce((sum, u) => sum + u.tasksAssigned, 0),
+      avgScore: users.length > 0 
+        ? users.reduce((sum, u) => sum + u.score, 0) / users.length 
+        : 0,
+    }))
+  }, [pointsByDepartment])
 
   // Check if user is admin
   const isAdmin = userProfile?.role === 'Admin'
@@ -87,8 +105,8 @@ export function KPIPointsPage() {
     <div className="kpi-points-page">
       <header className="panel-header">
         <div>
-          <h1>KPI Points Leaderboard</h1>
-          <p>Track performance based on completed calendar updates</p>
+          <h1>KPI Points - Department Leaderboards</h1>
+          <p>Track performance by department with deadline-based scoring</p>
         </div>
         {isAdmin && enrichedPoints.length > 0 && (
           <button
@@ -103,63 +121,17 @@ export function KPIPointsPage() {
         )}
       </header>
 
-      {/* Summary Stats */}
-      <section className="panel" style={{ marginBottom: '2rem' }}>
-        <div className="metrics-grid">
-          <div className="metric-card">
-            <span className="section-label">Total Points Awarded</span>
-            <strong>{totalPoints}</strong>
-            <p>Across all team members</p>
-          </div>
-          <div className="metric-card">
-            <span className="section-label">Active Participants</span>
-            <strong>{enrichedPoints.length}</strong>
-            <p>Team members with points</p>
-          </div>
-          <div className="metric-card">
-            <span className="section-label">Average Points</span>
-            <strong>
-              {enrichedPoints.length > 0
-                ? Math.round((totalPoints / enrichedPoints.length) * 10) / 10
-                : 0}
-            </strong>
-            <p>Per team member</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Top Performers */}
-      {topPerformers.length > 0 && (
+      {/* Department Stats Overview */}
+      {departmentStats.length > 0 && (
         <section className="panel" style={{ marginBottom: '2rem' }}>
-          <header className="panel-header">
-            <div>
-              <h2>Top Performers</h2>
-              <p>Top 10 team members by KPI points</p>
-            </div>
-          </header>
-          <div className="kpi-leaderboard">
-            {topPerformers.map((point, index) => (
-              <div
-                key={point.id}
-                className={`kpi-leaderboard-item ${index < 3 ? 'kpi-leaderboard-top' : ''}`}
-              >
-                <div className="kpi-rank">
-                  {index === 0 && <span className="kpi-medal">🥇</span>}
-                  {index === 1 && <span className="kpi-medal">🥈</span>}
-                  {index === 2 && <span className="kpi-medal">🥉</span>}
-                  {index >= 3 && <span className="kpi-rank-number">#{index + 1}</span>}
-                </div>
-                <div className="kpi-user-info">
-                  <div className="kpi-user-name">{point.displayName}</div>
-                  <div className="kpi-user-meta">
-                    <span>{point.department}</span>
-                    <span className="kpi-separator">•</span>
-                    <span>{point.role}</span>
-                  </div>
-                </div>
-                <div className="kpi-points">
-                  <strong>{point.points}</strong>
-                  <span className="kpi-points-label">points</span>
+          <div className="metrics-grid">
+            {departmentStats.map(stat => (
+              <div key={stat.department} className="metric-card">
+                <span className="section-label">{stat.department}</span>
+                <strong>{stat.totalUsers}</strong>
+                <p>{stat.totalUsers === 1 ? 'participant' : 'participants'}</p>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  Avg Score: {stat.avgScore.toFixed(0)}%
                 </div>
               </div>
             ))}
@@ -167,34 +139,120 @@ export function KPIPointsPage() {
         </section>
       )}
 
-      {/* Full Leaderboard */}
+      {/* Department Tabs */}
       <section className="panel">
-        <header className="panel-header">
-          <div>
-            <h2>Full Leaderboard</h2>
-            <p>Complete list of all team members sorted by points</p>
-          </div>
-        </header>
-        {enrichedPoints.length === 0 ? (
-          <div className="empty-state">
-            <p>No KPI points have been awarded yet.</p>
-            <p>Points are awarded when calendar updates are completed.</p>
-          </div>
-        ) : (
+        <div className="settings-tabs" style={{ marginBottom: '1.5rem' }}>
+          {departments.map(dept => (
+            <button
+              key={dept}
+              type="button"
+              className={`tab-button ${selectedDepartment === dept ? 'active' : ''}`}
+              onClick={() => setSelectedDepartment(dept)}
+            >
+              🏆 {dept}
+            </button>
+          ))}
+        </div>
+
+        {/* Current Department Leaderboard */}
+        <div>
+          <header className="panel-header" style={{ marginBottom: '1.5rem' }}>
+            <div>
+              <h2>{selectedDepartment} Leaderboard</h2>
+              <p>
+                {currentLeaderboard.length} {currentLeaderboard.length === 1 ? 'participant' : 'participants'}
+                {currentLeaderboard.length > 0 && ` • Legend: ✅ On-time  ⚠️ Late  ❌ Incomplete`}
+              </p>
+            </div>
+          </header>
+
+          {currentLeaderboard.length === 0 ? (
+            <div className="empty-state">
+              <p>No KPI points in {selectedDepartment} yet.</p>
+              <p>Points are awarded when calendar updates are completed.</p>
+            </div>
+          ) : (
+            <div className="kpi-leaderboard">
+              {currentLeaderboard.map((point, index) => {
+                const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`
+                const isTopThree = index < 3
+
+                return (
+                  <div
+                    key={point.id}
+                    className={`kpi-leaderboard-item ${isTopThree ? 'kpi-leaderboard-top' : ''}`}
+                  >
+                    <div className="kpi-rank">
+                      <span className={isTopThree ? 'kpi-medal' : 'kpi-rank-number'}>
+                        {rankEmoji}
+                      </span>
+                    </div>
+
+                    <div className="kpi-user-info">
+                      <div className="kpi-user-name">{point.displayName}</div>
+                      <div className="kpi-user-meta">
+                        <span>{point.role}</span>
+                      </div>
+                    </div>
+
+                    <div className="kpi-task-breakdown">
+                      <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <span title="Completed on time">
+                          ✅ {point.tasksCompletedOnTime}
+                        </span>
+                        <span title="Completed late">
+                          ⚠️ {point.tasksCompletedLate}
+                        </span>
+                        <span title="Not completed">
+                          ❌ {point.tasksIncomplete}
+                        </span>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                          / {point.tasksAssigned} total
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        Effective: {point.effectivePoints.toFixed(1)} points
+                      </div>
+                    </div>
+
+                    <div className="kpi-points">
+                      <strong style={{ fontSize: '1.8rem' }}>{Math.round(point.score)}%</strong>
+                      <span className="kpi-points-label">score</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Full Details Table */}
+      {currentLeaderboard.length > 0 && (
+        <section className="panel" style={{ marginTop: '2rem' }}>
+          <header className="panel-header">
+            <div>
+              <h2>Detailed Breakdown - {selectedDepartment}</h2>
+              <p>Complete task statistics for all participants</p>
+            </div>
+          </header>
+          
           <div className="kpi-table-container">
             <table className="kpi-table">
               <thead>
                 <tr>
                   <th>Rank</th>
                   <th>Name</th>
-                  <th>Department</th>
-                  <th>Role</th>
-                  <th>Points</th>
-                  <th>Last Updated</th>
+                  <th>Score</th>
+                  <th>On-Time</th>
+                  <th>Late</th>
+                  <th>Incomplete</th>
+                  <th>Total</th>
+                  <th>Effective</th>
                 </tr>
               </thead>
               <tbody>
-                {enrichedPoints.map((point, index) => (
+                {currentLeaderboard.map((point, index) => (
                   <tr key={point.id}>
                     <td className="kpi-rank-cell">
                       {index === 0 && <span className="kpi-medal-small">🥇</span>}
@@ -204,84 +262,49 @@ export function KPIPointsPage() {
                     </td>
                     <td className="kpi-name-cell">
                       <strong>{point.displayName}</strong>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {point.role}
+                      </div>
                     </td>
-                    <td>{point.department}</td>
-                    <td>{point.role}</td>
                     <td className="kpi-points-cell">
-                      <strong>{point.points}</strong>
+                      <strong>{Math.round(point.score)}%</strong>
                     </td>
-                    <td className="kpi-date-cell">
-                      {point.lastUpdated
-                        ? new Date(point.lastUpdated).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'N/A'}
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ color: '#2b8a59' }}>✅ {point.tasksCompletedOnTime}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ color: '#c45a14' }}>⚠️ {point.tasksCompletedLate}</span>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span style={{ color: '#d1434c' }}>❌ {point.tasksIncomplete}</span>
+                    </td>
+                    <td style={{ textAlign: 'center', fontWeight: '600' }}>
+                      {point.tasksAssigned}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {point.effectivePoints.toFixed(1)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
-      </section>
 
-      {/* Department Breakdown */}
-      {Object.keys(pointsByDepartment).length > 0 && (
-        <section className="panel" style={{ marginTop: '2rem' }}>
-          <header className="panel-header">
-            <div>
-              <h2>Department Breakdown</h2>
-              <p>Points distribution by department</p>
-            </div>
-          </header>
-          <div className="kpi-departments-grid">
-            {Object.entries(pointsByDepartment)
-              .sort(([a], [b]) => {
-                const totalA = a
-                  ? pointsByDepartment[a].reduce((sum, p) => sum + p.points, 0)
-                  : 0
-                const totalB = b
-                  ? pointsByDepartment[b].reduce((sum, p) => sum + p.points, 0)
-                  : 0
-                return totalB - totalA
-              })
-              .map(([department, points]) => {
-                const deptTotal = points.reduce((sum, p) => sum + p.points, 0)
-                const deptAvg =
-                  points.length > 0 ? Math.round((deptTotal / points.length) * 10) / 10 : 0
-                return (
-                  <div key={department} className="kpi-department-card">
-                    <h3>{department}</h3>
-                    <div className="kpi-department-stats">
-                      <div>
-                        <span className="section-label">Total Points</span>
-                        <strong>{deptTotal}</strong>
-                      </div>
-                      <div>
-                        <span className="section-label">Members</span>
-                        <strong>{points.length}</strong>
-                      </div>
-                      <div>
-                        <span className="section-label">Average</span>
-                        <strong>{deptAvg}</strong>
-                      </div>
-                    </div>
-                    <div className="kpi-department-members">
-                      {points
-                        .sort((a, b) => b.points - a.points)
-                        .slice(0, 5)
-                        .map((point) => (
-                          <div key={point.id} className="kpi-department-member">
-                            <span>{point.displayName}</span>
-                            <strong>{point.points} pts</strong>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )
-              })}
+          <div style={{ 
+            marginTop: '1rem', 
+            padding: '1rem', 
+            background: 'var(--surface-subtle)', 
+            borderRadius: '0.75rem',
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)'
+          }}>
+            <strong>Scoring System:</strong>
+            <ul style={{ margin: '0.5rem 0 0 1.5rem', lineHeight: '1.6' }}>
+              <li>✅ On-time completion: <strong>1.0 point</strong> (full credit)</li>
+              <li>⚠️ Late completion: <strong>0.5 points</strong> (50% penalty)</li>
+              <li>❌ Incomplete: <strong>0.0 points</strong> (no credit)</li>
+              <li>Score = (Effective Points / Total Assigned) × 100</li>
+            </ul>
           </div>
         </section>
       )}
@@ -323,17 +346,9 @@ export function KPIPointsPage() {
                 <p><strong>This will:</strong></p>
                 <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>
                   <li>Set all user KPI points to 0</li>
+                  <li>Reset all task counts to 0</li>
                   <li>Create audit trail records for the reset</li>
-                  <li>Affect {enrichedPoints.length} user{enrichedPoints.length !== 1 ? 's' : ''}</li>
-                  <li>Remove a total of {totalPoints} point{totalPoints !== 1 ? 's' : ''}</li>
-                </ul>
-                <p style={{ marginTop: '1rem' }}>
-                  <strong>Use this feature to:</strong>
-                </p>
-                <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>
-                  <li>Start a new performance period (e.g., new quarter/year)</li>
-                  <li>Clear test data</li>
-                  <li>Reset after system changes</li>
+                  <li>Affect {enrichedPoints.length} user{enrichedPoints.length !== 1 ? 's' : ''} across all departments</li>
                 </ul>
               </div>
 

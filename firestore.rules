@@ -294,9 +294,18 @@ service cloud.firestore {
         request.resource.data.keys().hasAll(['userId', 'userName', 'points', 'lastUpdated']) &&
         request.resource.data.userId is string &&
         request.resource.data.userName is string &&
-        request.resource.data.points is int &&
+        request.resource.data.points is number &&
         request.resource.data.points >= 0 &&
         request.resource.data.lastUpdated is string &&
+        // Allow optional department field
+        (!('department' in request.resource.data) || request.resource.data.department is string) &&
+        // Allow optional task tracking fields
+        (!('tasksAssigned' in request.resource.data) || request.resource.data.tasksAssigned is int) &&
+        (!('tasksCompletedOnTime' in request.resource.data) || request.resource.data.tasksCompletedOnTime is int) &&
+        (!('tasksCompletedLate' in request.resource.data) || request.resource.data.tasksCompletedLate is int) &&
+        (!('tasksIncomplete' in request.resource.data) || request.resource.data.tasksIncomplete is int) &&
+        (!('effectivePoints' in request.resource.data) || request.resource.data.effectivePoints is number) &&
+        (!('score' in request.resource.data) || request.resource.data.score is number) &&
         // Allow optional reset fields for admin reset operations
         (!('resetAt' in request.resource.data) || request.resource.data.resetAt is string) &&
         (!('resetBy' in request.resource.data) || request.resource.data.resetBy is string) &&
@@ -322,9 +331,8 @@ service cloud.firestore {
         request.resource.data.keys().hasAll(['userId', 'userName', 'points', 'reason', 'updateId', 'department', 'month', 'year', 'taskDetails', 'awardedAt']) &&
         request.resource.data.userId is string &&
         request.resource.data.userName is string &&
-        request.resource.data.points is int &&
-        // Allow both positive (awards) and negative (reversals/resets) points
-        (request.resource.data.points > 0 || request.resource.data.points < 0 || request.resource.data.points == 0) &&
+        request.resource.data.points is number &&
+        // Allow both positive (awards) and negative (reversals/resets) points, including decimals
         request.resource.data.reason is string &&
         request.resource.data.updateId is string &&
         request.resource.data.department is string &&
@@ -332,6 +340,10 @@ service cloud.firestore {
         request.resource.data.year is int &&
         request.resource.data.taskDetails is string &&
         request.resource.data.awardedAt is timestamp &&
+        // Deadline tracking fields (optional)
+        (!('deadline' in request.resource.data) || request.resource.data.deadline is string || request.resource.data.deadline == null) &&
+        (!('completedAt' in request.resource.data) || request.resource.data.completedAt is string) &&
+        (!('wasLate' in request.resource.data) || request.resource.data.wasLate is bool) &&
         // Reversal records have additional fields
         (!('originalAwardId' in request.resource.data) || request.resource.data.originalAwardId is string) &&
         (!('reversedAt' in request.resource.data) || request.resource.data.reversedAt is string) &&
@@ -339,7 +351,7 @@ service cloud.firestore {
         (!('resetBy' in request.resource.data) || request.resource.data.resetBy is string) &&
         (!('resetByName' in request.resource.data) || request.resource.data.resetByName is string) &&
         (!('resetAt' in request.resource.data) || request.resource.data.resetAt is string) &&
-        (!('previousPoints' in request.resource.data) || request.resource.data.previousPoints is int);
+        (!('previousPoints' in request.resource.data) || request.resource.data.previousPoints is number);
       
       // Allow delete only by Admins
       allow delete: if isAuthenticated() && hasRole(['Admin']);
