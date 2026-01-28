@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 
 type DatePickerCalendarProps = {
   selectedDates: string[]

@@ -507,7 +507,7 @@ type RequestCardProps = {
   onReject: (requestId: string, reason: string) => void
   onDelete: (requestId: string) => void
   formatDate: (date: string) => string
-  getStatusBadge: (status: LeaveRequest['status']) => JSX.Element
+  getStatusBadge: (status: LeaveRequest['status']) => React.JSX.Element
 }
 
 function RequestCard({
