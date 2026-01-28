@@ -394,7 +394,7 @@ export function LeaveRequestsPage() {
       {/* Create Request Modal */}
       {isCreateOpen && (
         <div className="modal-backdrop" role="presentation" onClick={() => setIsCreateOpen(false)}>
-          <div className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header">
               <div>
                 <h2>New Request</h2>

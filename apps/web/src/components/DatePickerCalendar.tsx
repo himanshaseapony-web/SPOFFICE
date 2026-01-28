@@ -143,7 +143,9 @@ export function DatePickerCalendar({
         background: 'var(--surface-default)',
         borderRadius: '0.75rem',
         border: '1px solid var(--border-soft)',
-        padding: '1.5rem',
+        padding: '1rem',
+        maxWidth: '100%',
+        overflow: 'hidden',
       }}
     >
       {/* Calendar Header */}
@@ -152,7 +154,9 @@ export function DatePickerCalendar({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '1.5rem',
+          marginBottom: '1rem',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -164,7 +168,7 @@ export function DatePickerCalendar({
           >
             ←
           </button>
-          <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
             {monthNames[month]} {year}
           </h3>
           <button
@@ -202,11 +206,11 @@ export function DatePickerCalendar({
       {selectedDates.length > 0 && (
         <div
           style={{
-            marginBottom: '1rem',
-            padding: '0.75rem',
+            marginBottom: '0.75rem',
+            padding: '0.5rem 0.75rem',
             background: 'var(--accent-soft)',
             borderRadius: '0.5rem',
-            fontSize: '0.9rem',
+            fontSize: '0.85rem',
             color: 'var(--accent)',
             fontWeight: 500,
           }}
@@ -220,7 +224,8 @@ export function DatePickerCalendar({
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: '0.5rem',
+          gap: '0.4rem',
+          width: '100%',
         }}
       >
         {/* Day Headers */}
@@ -228,10 +233,10 @@ export function DatePickerCalendar({
           <div
             key={day}
             style={{
-              padding: '0.75rem',
+              padding: '0.5rem 0.25rem',
               textAlign: 'center',
               fontWeight: 600,
-              fontSize: '0.85rem',
+              fontSize: '0.8rem',
               color: 'var(--text-secondary)',
             }}
           >
@@ -253,7 +258,9 @@ export function DatePickerCalendar({
               disabled={disabled}
               style={{
                 aspectRatio: '1',
-                padding: '0.5rem',
+                padding: '0.35rem',
+                minWidth: 0,
+                fontSize: '0.85rem',
                 background: isSelected
                   ? 'var(--accent)'
                   : disabled
@@ -281,7 +288,6 @@ export function DatePickerCalendar({
                     : isCurrentMonth
                       ? 'var(--text-primary)'
                       : 'var(--text-muted)',
-                fontSize: '0.9rem',
                 fontWeight: today || isSelected ? 600 : 400,
                 transition: 'all 0.2s ease',
                 opacity: disabled ? 0.4 : 1,
@@ -303,8 +309,8 @@ export function DatePickerCalendar({
               {isSelected && (
                 <span
                   style={{
-                    marginTop: '0.25rem',
-                    fontSize: '0.7rem',
+                    marginTop: '0.15rem',
+                    fontSize: '0.65rem',
                     fontWeight: 600,
                   }}
                 >
@@ -320,11 +326,13 @@ export function DatePickerCalendar({
       {selectedDates.length > 0 && (
         <div
           style={{
-            marginTop: '1.5rem',
-            padding: '1rem',
+            marginTop: '1rem',
+            padding: '0.75rem',
             background: 'var(--surface-elevated)',
             borderRadius: '0.5rem',
             border: '1px solid var(--border-soft)',
+            maxHeight: '150px',
+            overflowY: 'auto',
           }}
         >
           <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', fontWeight: 600 }}>
