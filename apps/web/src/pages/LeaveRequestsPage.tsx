@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import type { LeaveRequest } from '../context/AppDataContext'
 import { LeaveCalendar } from '../components/LeaveCalendar'
 import { DatePickerCalendar } from '../components/DatePickerCalendar'
+import { LeaveQuotaTracker } from '../components/LeaveQuotaTracker'
+import { canSubmitRequest } from '../lib/leaveQuota'
 
 export function LeaveRequestsPage() {
   const { leaveRequests, userProfile, createLeaveRequest, updateLeaveRequest, deleteLeaveRequest } = useAppData()
@@ -80,6 +82,14 @@ export function LeaveRequestsPage() {
 
       if (!reason) {
         setError('Reason is required')
+        setIsSubmitting(false)
+        return
+      }
+
+      // Check quota before submitting
+      const quotaCheck = canSubmitRequest(leaveRequests, user.uid, type as 'Leave' | 'Work From Home')
+      if (!quotaCheck.allowed) {
+        setError(quotaCheck.reason || 'Quota limit reached')
         setIsSubmitting(false)
         return
       }
@@ -217,16 +227,17 @@ export function LeaveRequestsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
   return (
-    <div className="panel">
-      <header className="panel-header">
-        <div>
-          <h2>Leave & Work From Home Requests</h2>
-          <p>
-            {isManagerOrAdmin
-              ? `Manage leave and work from home requests. ${pendingCount} pending request${pendingCount !== 1 ? 's' : ''}.`
-              : `Request leave or work from home. You have ${myPendingCount} pending request${myPendingCount !== 1 ? 's' : ''}.`}
-          </p>
-        </div>
+    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      <div className="panel" style={{ flex: '1 1 600px', minWidth: 0 }}>
+        <header className="panel-header">
+          <div>
+            <h2>Leave & Work From Home Requests</h2>
+            <p>
+              {isManagerOrAdmin
+                ? `Manage leave and work from home requests. ${pendingCount} pending request${pendingCount !== 1 ? 's' : ''}.`
+                : `Request leave or work from home. You have ${myPendingCount} pending request${myPendingCount !== 1 ? 's' : ''}.`}
+            </p>
+          </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           {isManagerOrAdmin && (
             <div
@@ -390,6 +401,12 @@ export function LeaveRequestsPage() {
           ))}
         </div>
       ) : null}
+      </div>
+
+      {/* Right Side - Quota Tracker */}
+      <aside style={{ width: '320px', flexShrink: 0, flexBasis: '320px' }}>
+        <LeaveQuotaTracker leaveRequests={leaveRequests} />
+      </aside>
 
       {/* Create Request Modal */}
       {isCreateOpen && (
