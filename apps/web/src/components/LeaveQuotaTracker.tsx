@@ -75,7 +75,7 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
                 <span>Leave Requests</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {quotaUsage.leave} of {maxLeave} day{maxLeave !== 1 ? 's' : ''} used
+                {quotaUsage.leave} of {maxLeave} day{maxLeave > 1 ? 's' : ''} used
               </div>
             </div>
             <div
@@ -141,7 +141,7 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
                 <span>Work From Home</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {quotaUsage.wfh} of {maxWFH} day{maxWFH !== 1 ? 's' : ''} used
+                {quotaUsage.wfh} of {maxWFH} day{maxWFH > 1 ? 's' : ''} used
               </div>
             </div>
             <div
