@@ -19,8 +19,8 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
     return calculateQuotaUsage(leaveRequests, user.uid)
   }, [leaveRequests, user])
 
-  const maxLeave = 2
-  const maxWFH = 2
+  const maxLeave = 2 // 2 days of leave per period
+  const maxWFH = 2 // 2 days of WFH per period
   const leaveRemaining = Math.max(0, maxLeave - quotaUsage.leave)
   const wfhRemaining = Math.max(0, maxWFH - quotaUsage.wfh)
 
@@ -44,8 +44,6 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
   const getProgressPercentage = (used: number, max: number) => {
     return Math.min(100, (used / max) * 100)
   }
-
-  if (!user) return null
 
   if (!user) return null
 
@@ -77,7 +75,7 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
                 <span>Leave Requests</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {quotaUsage.leave} of {maxLeave} used
+                {quotaUsage.leave} of {maxLeave} day{maxLeave !== 1 ? 's' : ''} used
               </div>
             </div>
             <div
@@ -143,7 +141,7 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
                 <span>Work From Home</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                {quotaUsage.wfh} of {maxWFH} used
+                {quotaUsage.wfh} of {maxWFH} day{maxWFH !== 1 ? 's' : ''} used
               </div>
             </div>
             <div
@@ -205,8 +203,8 @@ export function LeaveQuotaTracker({ leaveRequests }: LeaveQuotaTrackerProps) {
         >
           <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Quota Period</div>
           <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            You can request up to <strong>{maxLeave} leaves</strong> and{' '}
-            <strong>{maxWFH} work from home</strong> requests during this period.
+            You can request up to <strong>{maxLeave} days of leave</strong> and{' '}
+            <strong>{maxWFH} days of work from home</strong> during this period.
           </div>
         </div>
       </div>

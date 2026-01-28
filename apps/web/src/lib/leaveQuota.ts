@@ -49,24 +49,25 @@ function generateDateRange(startDate: string, endDate: string): string[] {
 }
 
 /**
- * Check if a request has any days within the quota period
+ * Count how many days from a request fall within the quota period
  */
-function hasDaysInPeriod(request: LeaveRequest, periodStart: Date, periodEnd: Date): boolean {
+function countDaysInPeriod(request: LeaveRequest, periodStart: Date, periodEnd: Date): number {
   const days = request.selectedDays && request.selectedDays.length > 0
     ? request.selectedDays
     : request.startDate && request.endDate
       ? generateDateRange(request.startDate, request.endDate)
       : []
 
-  return days.some((day) => {
+  // Count days that fall within the quota period
+  return days.filter((day) => {
     const dayDate = new Date(day)
     dayDate.setHours(0, 0, 0, 0)
     return dayDate >= periodStart && dayDate < periodEnd
-  })
+  }).length
 }
 
 /**
- * Calculate quota usage for a user
+ * Calculate quota usage for a user (counts days, not requests)
  */
 export function calculateQuotaUsage(
   leaveRequests: LeaveRequest[],
@@ -77,45 +78,55 @@ export function calculateQuotaUsage(
     (req) => req.userId === userId && req.status === 'Approved'
   )
 
-  let leaveCount = 0
-  let wfhCount = 0
+  let leaveDays = 0
+  let wfhDays = 0
 
   userRequests.forEach((request) => {
-    if (hasDaysInPeriod(request, start, end)) {
+    const daysInPeriod = countDaysInPeriod(request, start, end)
+    if (daysInPeriod > 0) {
       if (request.type === 'Leave') {
-        leaveCount++
+        leaveDays += daysInPeriod
       } else if (request.type === 'Work From Home') {
-        wfhCount++
+        wfhDays += daysInPeriod
       }
     }
   })
 
-  return { leave: leaveCount, wfh: wfhCount }
+  return { leave: leaveDays, wfh: wfhDays }
 }
 
 /**
- * Check if user can submit a new request of the given type
+ * Check if user can submit a new request of the given type with specified number of days
  */
 export function canSubmitRequest(
   leaveRequests: LeaveRequest[],
   userId: string,
-  type: 'Leave' | 'Work From Home'
+  type: 'Leave' | 'Work From Home',
+  numberOfDays: number
 ): { allowed: boolean; reason?: string } {
   const usage = calculateQuotaUsage(leaveRequests, userId)
   const maxLeave = 2
   const maxWFH = 2
 
-  if (type === 'Leave' && usage.leave >= maxLeave) {
-    return {
-      allowed: false,
-      reason: `You have reached your leave quota (${maxLeave} leaves per period).`,
+  if (type === 'Leave') {
+    const totalAfterRequest = usage.leave + numberOfDays
+    if (totalAfterRequest > maxLeave) {
+      const remaining = Math.max(0, maxLeave - usage.leave)
+      return {
+        allowed: false,
+        reason: `You can only request ${remaining} more day${remaining !== 1 ? 's' : ''} of leave. You have ${usage.leave} of ${maxLeave} days used.`,
+      }
     }
   }
 
-  if (type === 'Work From Home' && usage.wfh >= maxWFH) {
-    return {
-      allowed: false,
-      reason: `You have reached your work from home quota (${maxWFH} requests per period).`,
+  if (type === 'Work From Home') {
+    const totalAfterRequest = usage.wfh + numberOfDays
+    if (totalAfterRequest > maxWFH) {
+      const remaining = Math.max(0, maxWFH - usage.wfh)
+      return {
+        allowed: false,
+        reason: `You can only request ${remaining} more day${remaining !== 1 ? 's' : ''} of work from home. You have ${usage.wfh} of ${maxWFH} days used.`,
+      }
     }
   }
 

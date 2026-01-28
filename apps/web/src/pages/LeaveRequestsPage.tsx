@@ -86,8 +86,13 @@ export function LeaveRequestsPage() {
         return
       }
 
-      // Check quota before submitting
-      const quotaCheck = canSubmitRequest(leaveRequests, user.uid, type as 'Leave' | 'Work From Home')
+      // Check quota before submitting (check based on number of days)
+      const quotaCheck = canSubmitRequest(
+        leaveRequests,
+        user.uid,
+        type as 'Leave' | 'Work From Home',
+        validDays.length
+      )
       if (!quotaCheck.allowed) {
         setError(quotaCheck.reason || 'Quota limit reached')
         setIsSubmitting(false)
