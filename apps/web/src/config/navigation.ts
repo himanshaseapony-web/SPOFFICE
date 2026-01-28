@@ -10,6 +10,7 @@ export const navItems: NavItem[] = [
   { label: 'My Tasks', path: '/my-tasks', allowedRoles: ['Specialist', 'DepartmentHead'] },
   { label: 'Company Chat', path: '/company-chat' },
   { label: 'Update Calendar', path: '/update-calendar' },
+  { label: 'Leave Requests', path: '/leave-requests' },
   { label: 'In Progress', path: '/in-progress', allowedRoles: ['Admin', 'Manager'] },
   { label: 'Departments', path: '/departments', allowedRoles: ['Admin', 'Manager', 'DepartmentHead'] },
   { label: 'Reports', path: '/reports', allowedRoles: ['Admin', 'Manager', 'DepartmentHead'] },

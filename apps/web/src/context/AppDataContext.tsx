@@ -21,6 +21,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  addDoc,
   Timestamp,
   where,
   type CollectionReference,
@@ -117,6 +118,26 @@ export type KPIPoint = {
   lastUpdated: string
 }
 
+export type LeaveRequest = {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  department: string
+  type: 'Leave' | 'Work From Home'
+  startDate: string // ISO date string (legacy, for backward compatibility)
+  endDate: string // ISO date string (legacy, for backward compatibility)
+  selectedDays: string[] // Array of ISO date strings for selected days
+  numberOfDays: number // Number of days requested
+  reason: string
+  status: 'Pending' | 'Approved' | 'Rejected'
+  requestedAt: string // ISO timestamp
+  reviewedBy?: string // User ID of approver
+  reviewedByName?: string // Display name of approver
+  reviewedAt?: string // ISO timestamp
+  rejectionReason?: string
+}
+
 type AppDataContextValue = {
   departments: Department[]
   tasks: Task[]
@@ -139,6 +160,7 @@ type AppDataContextValue = {
   userProfile: UserProfile | null
   allUserProfiles: UserProfile[]
   kpiPoints: KPIPoint[]
+  leaveRequests: LeaveRequest[]
   loading: boolean
   firestore: Firestore | null
   dataError: Error | null
@@ -149,6 +171,9 @@ type AppDataContextValue = {
   deleteChatMessage: (messageId: string) => Promise<void>
   deleteCompanyChatMessage: (messageId: string) => Promise<void>
   markCompanyChatMessageAsSeen: (messageId: string) => Promise<void>
+  createLeaveRequest: (request: Omit<LeaveRequest, 'id' | 'status' | 'requestedAt'>) => Promise<void>
+  updateLeaveRequest: (requestId: string, updates: Partial<LeaveRequest>) => Promise<void>
+  deleteLeaveRequest: (requestId: string) => Promise<void>
 }
 
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined)
@@ -180,6 +205,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [allUserProfiles, setAllUserProfiles] = useState<UserProfile[]>([])
   const [kpiPoints, setKpiPoints] = useState<KPIPoint[]>([])
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [firestore, setFirestore] = useState<Firestore | null>(null)
   const [dataError, setDataError] = useState<Error | null>(null)
@@ -620,6 +646,60 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe()
   }, [firestore, user])
 
+  // Load leave requests - users see only their own, Managers/Admins see all
+  useEffect(() => {
+    if (!firestore || !user || !userProfile) {
+      setLeaveRequests([])
+      return () => {}
+    }
+
+    const leaveRequestsRef = collection(firestore, 'leaveRequests')
+    const userRole = userProfile.role
+    const isManagerOrAdmin = userRole === 'Admin' || userRole === 'Manager'
+    
+    // Managers and Admins see all requests, others see only their own
+    // For regular users, we filter by userId and sort in memory to avoid composite index requirement
+    const requestsQuery = isManagerOrAdmin
+      ? query(leaveRequestsRef, orderBy('requestedAt', 'desc'))
+      : query(leaveRequestsRef, where('userId', '==', user.uid))
+
+    const unsubscribe = onSnapshot(
+      requestsQuery,
+      (snapshot) => {
+        const requests = snapshot.docs.map((docSnapshot) => {
+          const data = docSnapshot.data()
+          return {
+            id: docSnapshot.id,
+            userId: data.userId ?? '',
+            userName: data.userName ?? '',
+            userEmail: data.userEmail ?? '',
+            department: data.department ?? '',
+            type: data.type ?? 'Leave',
+            startDate: data.startDate ?? '',
+            endDate: data.endDate ?? '',
+            selectedDays: data.selectedDays ?? (data.startDate && data.endDate ? [] : []),
+            numberOfDays: data.numberOfDays ?? 0,
+            reason: data.reason ?? '',
+            status: data.status ?? 'Pending',
+            requestedAt: data.requestedAt ?? new Date().toISOString(),
+            reviewedBy: data.reviewedBy,
+            reviewedByName: data.reviewedByName,
+            reviewedAt: data.reviewedAt,
+            rejectionReason: data.rejectionReason,
+          } satisfies LeaveRequest
+        })
+        // Sort by requestedAt descending (newest first)
+        requests.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime())
+        setLeaveRequests(requests)
+      },
+      (error) => {
+        console.error('Failed to load leave requests', error)
+      }
+    )
+
+    return () => unsubscribe()
+  }, [firestore, user, userProfile])
+
   // Function to mark company chat as read
   const markCompanyChatAsRead = useCallback(() => {
     if (!user) return
@@ -726,6 +806,56 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'status' | 'requestedAt'>) => {
+    if (!firestore || !user || !userProfile) {
+      throw new Error('Firestore is not initialized or user not authenticated')
+    }
+
+    // Calculate startDate and endDate from selectedDays for backward compatibility
+    const sortedDays = request.selectedDays?.length > 0 
+      ? [...request.selectedDays].sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+      : []
+    
+    const requestData = {
+      ...request,
+      startDate: sortedDays.length > 0 ? sortedDays[0] : request.startDate || new Date().toISOString().split('T')[0],
+      endDate: sortedDays.length > 0 ? sortedDays[sortedDays.length - 1] : request.endDate || new Date().toISOString().split('T')[0],
+      status: 'Pending' as const,
+      requestedAt: new Date().toISOString(),
+    }
+
+    await addDoc(collection(firestore, 'leaveRequests'), requestData)
+  }
+
+  const updateLeaveRequest = async (requestId: string, updates: Partial<LeaveRequest>) => {
+    if (!firestore) {
+      throw new Error('Firestore is not initialized')
+    }
+
+    const requestRef = doc(firestore, 'leaveRequests', requestId)
+    const updateData: Record<string, any> = {
+      ...updates,
+    }
+
+    // Remove undefined values
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] === undefined) {
+        delete updateData[key]
+      }
+    })
+
+    await updateDoc(requestRef, updateData)
+  }
+
+  const deleteLeaveRequest = async (requestId: string) => {
+    if (!firestore) {
+      throw new Error('Firestore is not initialized')
+    }
+
+    const requestRef = doc(firestore, 'leaveRequests', requestId)
+    await deleteDoc(requestRef)
+  }
+
   const value = useMemo<AppDataContextValue>(
     () => ({
       departments,
@@ -738,6 +868,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       userProfile,
       allUserProfiles,
       kpiPoints,
+      leaveRequests,
       loading,
       firestore,
       dataError,
@@ -748,6 +879,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       deleteChatMessage,
       deleteCompanyChatMessage,
       markCompanyChatMessageAsSeen,
+      createLeaveRequest,
+      updateLeaveRequest,
+      deleteLeaveRequest,
     }),
     [
       allUserProfiles,
@@ -760,6 +894,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       filteredTasks,
       filters,
       kpiPoints,
+      leaveRequests,
       loading,
       tasks,
       userProfile,

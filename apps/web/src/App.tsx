@@ -14,6 +14,7 @@ import KPIPointsPage from './pages/KPIPointsPage'
 import AutomationPage from './pages/AutomationPage'
 import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
+import LeaveRequestsPage from './pages/LeaveRequestsPage'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
           />
           <Route path="company-chat" element={<ProtectedRoute><CompanyChatPage /></ProtectedRoute>} />
           <Route path="update-calendar" element={<ProtectedRoute><UpdateCalendarPage /></ProtectedRoute>} />
+          <Route path="leave-requests" element={<ProtectedRoute><LeaveRequestsPage /></ProtectedRoute>} />
           <Route 
             path="in-progress" 
             element={

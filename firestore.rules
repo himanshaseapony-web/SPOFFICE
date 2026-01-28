@@ -421,6 +421,79 @@ service cloud.firestore {
       );
     }
     
+    // Leave Requests - leave and work from home requests
+    match /leaveRequests/{requestId} {
+      // Allow read:
+      // 1. Users can read their own requests
+      // 2. Managers/Admins can read all requests
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        hasRole(['Admin', 'Manager'])
+      );
+      
+      // Allow create for authenticated users (only their own requests)
+      allow create: if isAuthenticated() &&
+        getUserProfileExists() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['userId', 'userName', 'userEmail', 'department', 'type', 'reason', 'status', 'requestedAt']) &&
+        request.resource.data.userId is string &&
+        request.resource.data.userName is string &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.department is string &&
+        request.resource.data.type in ['Leave', 'Work From Home'] &&
+        request.resource.data.reason is string &&
+        request.resource.data.reason.size() > 0 &&
+        request.resource.data.status == 'Pending' &&
+        request.resource.data.requestedAt is string &&
+        // Optional fields for backward compatibility
+        (!('startDate' in request.resource.data) || request.resource.data.startDate is string) &&
+        (!('endDate' in request.resource.data) || request.resource.data.endDate is string) &&
+        // New fields for day selection
+        (!('selectedDays' in request.resource.data) || 
+         (request.resource.data.selectedDays is list &&
+          request.resource.data.selectedDays.size() > 0 &&
+          request.resource.data.selectedDays.size() <= 365)) &&
+        (!('numberOfDays' in request.resource.data) || 
+         (request.resource.data.numberOfDays is int &&
+          request.resource.data.numberOfDays > 0 &&
+          request.resource.data.numberOfDays <= 365));
+      
+      // Allow update:
+      // 1. Users can update their own PENDING requests (to cancel/modify before approval)
+      // 2. Only Managers/Admins can approve/reject requests (change status from Pending)
+      allow update: if isAuthenticated() && getUserProfileExists() && (
+        // User updating their own PENDING request (can only update certain fields, cannot change status to Approved/Rejected)
+        (isOwner(resource.data.userId) &&
+         resource.data.status == 'Pending' &&
+         // Can only update: reason, selectedDays, numberOfDays, startDate, endDate
+         // Cannot change status to Approved/Rejected
+         (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
+          request.resource.data.status == 'Pending') &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reason', 'selectedDays', 'numberOfDays', 'startDate', 'endDate', 'requestedAt'])) ||
+        // Managers/Admins can approve/reject (change status and add review info)
+        (hasRole(['Admin', 'Manager']) &&
+         resource.data.status == 'Pending' &&
+         // Can only update: status, reviewedBy, reviewedByName, reviewedAt, rejectionReason
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewedByName', 'reviewedAt', 'rejectionReason']) &&
+         request.resource.data.status in ['Approved', 'Rejected'] &&
+         request.resource.data.reviewedBy == request.auth.uid &&
+         request.resource.data.reviewedByName is string &&
+         request.resource.data.reviewedAt is string &&
+         // If rejected, rejectionReason is required
+         (request.resource.data.status == 'Approved' ||
+          (request.resource.data.status == 'Rejected' &&
+           'rejectionReason' in request.resource.data &&
+           request.resource.data.rejectionReason is string &&
+           request.resource.data.rejectionReason.size() > 0)))
+      );
+      
+      // Allow delete only for users deleting their own PENDING requests or Admins
+      allow delete: if isAuthenticated() && (
+        (isOwner(resource.data.userId) && resource.data.status == 'Pending') ||
+        hasRole(['Admin'])
+      );
+    }
+    
     // Default: deny all other access
     match /{document=**} {
       allow read, write: if false;
